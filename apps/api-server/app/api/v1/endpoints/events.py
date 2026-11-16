@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import Text, and_, cast, func, or_, select
 
+from app.alerts import runtime as alerts
 from app.api.deps import DbDep, SettingsDep, require_permission
 from app.api.device_auth import CurrentDevice
 from app.core.errors import AppError, NotFoundError, PermissionDeniedError
@@ -62,6 +63,7 @@ def upload_batch(body: EventBatchIn, request: Request, device: CurrentDevice, db
     result = request.app.state.event_processor.process(
         db, device, body.events, strip_person_attributes=not privacy.store_person_attributes
     )
+    alerts.evaluate_events(db, device, result.stored)
     status = "ok" if not result.rejected else ("partial" if result.accepted or result.duplicate else "failed")
     db.add(
         SynchronizationLog(

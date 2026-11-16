@@ -98,6 +98,17 @@ class Settings(BaseSettings):
     rate_register_per_min: float = Field(default=10, gt=0)
     device_monitor_interval_s: float = Field(default=10, ge=0.2, le=600)
 
+    # E-mail notifications (MVP 08). Without smtp_host no e-mail is ever sent.
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
+    # Optional link to the dashboard in e-mails, e.g. https://camera-agent-aci.vercel.app
+    public_dashboard_url: str = ""
+
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_json: bool = True
@@ -119,6 +130,10 @@ class Settings(BaseSettings):
     @property
     def database_configured(self) -> bool:
         return bool(self.database_url)
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host and (self.smtp_from or self.smtp_username))
 
     @property
     def redis_configured(self) -> bool:

@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  BellRing,
   BrainCircuit,
   Cctv,
   Cpu,
@@ -57,7 +58,13 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/analytics",
     label: "Analytics",
     icon: BarChart3,
-    availableIn: "MVP 08",
+    permission: "events:read",
+  },
+  {
+    href: "/alerts",
+    label: "Alerts",
+    icon: BellRing,
+    permission: "events:read",
   },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

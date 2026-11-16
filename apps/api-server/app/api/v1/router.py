@@ -1,6 +1,18 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, dashboard, devices, events, health, realtime, settings_api, system, users
+from app.api.v1.endpoints import (
+    alerts,
+    analytics,
+    auth,
+    dashboard,
+    devices,
+    events,
+    health,
+    realtime,
+    settings_api,
+    system,
+    users,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
@@ -14,3 +26,6 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(users.roles_router, prefix="/roles", tags=["users"])
 api_router.include_router(settings_api.router, prefix="/system", tags=["system"])
 api_router.include_router(dashboard.router, tags=["dashboard"])
+api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+api_router.include_router(alerts.rules_router, prefix="/alert-rules", tags=["alerts"])

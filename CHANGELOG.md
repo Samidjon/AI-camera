@@ -3,6 +3,44 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.8.0] — MVP 08 Analytics, Reports & Alerts — 2026-11-16
+
+### Added
+- **Analytics engine** on the central server, computed only from stored events:
+  - standard (motion) analytics: motion events, activity time, frequency per hour, hourly / daily
+    series, weekday × hour heatmap, camera comparison, zone entries / exits / occupancy estimate /
+    average dwell, line crossings by direction;
+  - AI (people) analytics only when person events exist: observations (one per temporary track per
+    camera), inbound / outbound from line direction, average time in view, time-of-day distribution,
+    peak hours, per-camera comparison;
+  - device health and AI performance (FPS, latency) from heartbeats.
+  - Time zone aware (IANA, DST-correct buckets); motion counts are never shown as people counts;
+    people analytics hidden without `observations:read`.
+- **Reports** — daily, weekly, monthly, camera, device, zone, AI performance — as JSON, CSV and PDF
+  (fpdf2, Unicode font).
+- **Alert engine**: user-defined rules for 14 conditions (camera offline / reconnected, stream error,
+  AI offline / recovered, model error, device offline, high CPU / memory / temperature, low disk,
+  motion, zone activity, line crossed), scope per device / camera / zone / line, severity, cooldown
+  per scope, automatic resolve on reconnect / recovery. Alerting never breaks event ingestion.
+- **Notifications**: in-app (live `alert.created` over WebSocket, top-bar bell with open count) and
+  e-mail via SMTP (background worker, 3 attempts, delivery log; skipped and recorded when SMTP is not
+  configured), test e-mail endpoint. Migration 0004: `alert_rules`, `alerts`,
+  `notification_deliveries`.
+- Dashboard: **Analytics** page (charts with hover and table view, validated colour palette, report
+  downloads), **Alerts** page (list, acknowledge / resolve, delivery details, rules editor,
+  recommended health rules, SMTP status and test).
+- Heartbeats now carry AI inference FPS / latency; stored per heartbeat for reports.
+- Tests: 26 server tests (statistics, duplicates, time zones / DST, empty data, permissions, reports,
+  rules, firing, cooldown, scope, resolve, metrics, device offline, e-mail delivery and retries,
+  live publish, failure isolation); Playwright spec for analytics and alerts.
+
+### Fixed
+- `usePermissions().can` was a new function on every render, re-running effects that depend on it.
+
+### Deployment (between 0.7.0 and 0.8.0)
+- Dashboard deploys to Vercel (`apps/dashboard`), server/agent addresses configurable on the login
+  screen, installable PWA for phones, CORS for `*.vercel.app` previews. See `docs/DEPLOYMENT.md`.
+
 ## [0.7.0] — MVP 07 Web Dashboard — 2026-11-16
 
 ### Added

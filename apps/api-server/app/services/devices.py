@@ -366,6 +366,10 @@ def _device_event(db: Session, device: EdgeDevice, previous: str, status: str, r
                     source="system", occurred_at=now, received_at=now,
                     event_metadata={"device_name": device.name, "previous": previous, "reason": reason})
     )  # fmt: skip
+    from app.alerts import runtime as alerts  # late import avoids a cycle (alerts → devices models)
+
+    alerts.evaluate_events(db, device, [{"event_type": event_type, "source": "system", "camera_ref": None,
+                                         "metadata": {"reason": reason, "previous": previous}}])  # fmt: skip
     summary = {
         "event_type": event_type,
         "source": "system",
@@ -441,6 +445,16 @@ def _sync_cameras(db: Session, device: EdgeDevice, reported: list[dict]) -> None
         db.execute(delete(Camera).where(Camera.id.in_(gone)))
 
 
+HEARTBEAT_HW_KEYS = ("cpu", "memory", "temperature", "gpu", "disk")
+HEARTBEAT_AI_KEYS = ("enabled", "mode", "model", "inference_fps", "latency_avg_ms", "latency_p95_ms")
+
+
+def _heartbeat_metrics(device: EdgeDevice) -> dict:
+    """Compact per-heartbeat snapshot kept for history and reports (hardware + AI performance)."""
+    hw = device.metrics.get("hardware") or {}
+    return {k: hw.get(k) for k in HEARTBEAT_HW_KEYS} | {"ai": {k: device.ai_status.get(k) for k in HEARTBEAT_AI_KEYS}}
+
+
 def process_heartbeat(db: Session, settings: Settings, device: EdgeDevice, payload: dict, ip: str | None) -> dict:
     now = utcnow()
     device.last_heartbeat_at = now
@@ -481,7 +495,7 @@ def process_heartbeat(db: Session, settings: Settings, device: EdgeDevice, paylo
             cameras_total=device.camera_status.get("total", 0),
             ai_mode=str(device.ai_status.get("mode") or "")[:20] or None,
             queue_pending=_int(device.sync_status.get("pending")),
-            metrics={k: (device.metrics["hardware"] or {}).get(k) for k in ("cpu", "memory", "temperature", "gpu")},
+            metrics=_heartbeat_metrics(device),
         )
     )
     return {

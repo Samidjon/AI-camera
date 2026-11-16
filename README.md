@@ -3,14 +3,12 @@
 Modular, offline-first video-surveillance platform: IP cameras → edge agents (local computer
 vision, optional AI) → central server → web control center.
 
-> **Status: MVP 04 — AI Engine.** Everything below plus an optional, fail-safe AI layer (local YOLOX
-> person detection, ByteTrack, clothing attributes, optional Claude provider).
->
-> **MVP 03 — Standard Vision Engine.** Central API server, auth, dashboard, the edge camera
-> agent (RTSP / ONVIF / USB / file / FFmpeg sources, live preview, reconnection, encrypted
-> credentials) and AI-free motion analysis (motion objects, tracking, line crossing, zones, local
-> event storage) are implemented and work without internet or server. Optional AI, edge sync and
-> analytics are **not implemented yet** (MVP 04–08).
+> **Status: 0.8.0 — MVP 08 Analytics, Reports & Alerts.** Edge agents (camera sources, AI-free
+> motion analysis, optional fail-safe AI: YOLOX person detection, ByteTrack, clothing attributes),
+> central server (device fleet, event ingestion, real time), web control center (live wall, events,
+> observations, settings, installable on phones) and now server-side analytics, CSV / PDF reports and
+> configurable alerts with in-app and e-mail notifications. Everything on the edge keeps working
+> without internet or server. Next: MVP 09 production release.
 
 ## Principles
 
@@ -90,6 +88,7 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/AI_ENGINE.md](docs/AI_ENGINE.md) — optional AI: model install, modes, failure protection, privacy
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Vercel (dashboard), HTTPS for the server, phone install, security checklist
 - [docs/DASHBOARD.md](docs/DASHBOARD.md) — control center pages, roles, real-time, live wall, Playwright tests
+- [docs/ANALYTICS_ALERTS.md](docs/ANALYTICS_ALERTS.md) — analytics rules, reports, alert conditions, e-mail (SMTP)
 - [docs/CENTRAL_SERVER.md](docs/CENTRAL_SERVER.md) — devices, event processor, configuration, WebSocket, security
 - [docs/EDGE_AGENT.md](docs/EDGE_AGENT.md) — edge runtime: identity, offline sync, server contract, backups, security
 - [docs/JETSON.md](docs/JETSON.md) — install on Linux / NVIDIA Jetson as a systemd service, update, uninstall

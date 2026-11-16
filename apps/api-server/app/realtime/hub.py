@@ -29,6 +29,7 @@ TYPE_PERMISSION = {
     "event.created": "events:read",
     "sync.status": "devices:read",
     "system.notification": "devices:read",
+    "alert.created": "events:read",
 }
 
 
