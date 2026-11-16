@@ -168,3 +168,13 @@ def test_camera_limit(client: TestClient, settings, factory: FakeFactory):
         assert _create(client, name=f"C{i}", source_uri=f"rtsp://10.0.2.{i}/s", connect=False).status_code == 201
     r = _create(client, name="C3", source_uri="rtsp://10.0.2.9/s", connect=False)
     assert r.status_code == 409 and r.json()["error"]["code"] == "camera_limit"
+
+
+def test_cors_origin_regex(settings, manager):
+    from aci_agent.api.app import create_app
+
+    s = settings.model_copy(update={"cors_origin_regex": r"https://camera-agent(-[a-z0-9-]+)?\.vercel\.app"})
+    with TestClient(create_app(s, manager=manager)) as c:
+        ok = c.get("/api/v1/health", headers={"Origin": "https://camera-agent.vercel.app"})
+        assert ok.headers.get("access-control-allow-origin") == "https://camera-agent.vercel.app"
+        assert "access-control-allow-origin" not in c.get("/api/v1/health", headers={"Origin": "https://x.example"}).headers

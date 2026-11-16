@@ -166,3 +166,17 @@ def test_access_token_carries_permissions_for_edge_agents(client: TestClient, db
     claims = decode_access_token(token, settings)
     assert claims["role"] == "operator"
     assert "cameras:control" in claims["perms"] and "cameras:manage" not in claims["perms"]
+
+
+def test_cors_origin_regex_allows_vercel_deployments(settings, engine):
+    """A dashboard on Vercel (production + preview URLs) is allowed by pattern, others are not."""
+    from app.main import create_app
+
+    s = settings.model_copy(update={"cors_origin_regex": r"https://camera-agent(-[a-z0-9-]+)?\.vercel\.app"})
+    app = create_app(s)
+    app.dependency_overrides[get_settings] = lambda: s
+    with TestClient(app) as c:
+        ok = c.get("/api/v1/health", headers={"Origin": "https://camera-agent-git-main-x.vercel.app"})
+        assert ok.headers.get("access-control-allow-origin") == "https://camera-agent-git-main-x.vercel.app"
+        bad = c.get("/api/v1/health", headers={"Origin": "https://evil.example.com"})
+        assert "access-control-allow-origin" not in bad.headers

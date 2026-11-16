@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { ServiceWorkerRegister } from "@/components/layout/sw-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth/auth-provider";
 
@@ -23,6 +24,26 @@ export const metadata: Metadata = {
     template: "%s · Camera Intelligence",
   },
   description: "AI Camera Intelligence — surveillance control center",
+  applicationName: "Camera Intelligence",
+  appleWebApp: {
+    capable: true,
+    title: "Camera Intel",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32" },
+      { url: "/icons/icon-192.png", sizes: "192x192" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#181d24",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover", // full screen on notched phones when installed
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -40,6 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <TooltipProvider delayDuration={200}>
           <AuthProvider>{children}</AuthProvider>
+          <ServiceWorkerRegister />
         </TooltipProvider>
       </body>
     </html>

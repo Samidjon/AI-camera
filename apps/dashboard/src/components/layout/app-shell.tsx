@@ -78,9 +78,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="mt-2 font-mono text-xs text-muted-foreground">
             {state.message}
           </p>
-          <Button className="mt-4" onClick={retry}>
-            Retry connection
-          </Button>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button onClick={retry}>Retry connection</Button>
+            <Button variant="outline" onClick={() => router.push("/login")}>
+              Change server address
+            </Button>
+          </div>
         </div>
       </FullScreenMessage>
     );

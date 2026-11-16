@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api/client";
+import { agentBaseUrl } from "@/lib/connection";
 
 import type {
   AIConfig,
@@ -30,9 +31,7 @@ import type {
  * Edge agent (camera manager) base URL. In MVP 02 the dashboard talks to one agent directly;
  * multi-agent routing through the central server arrives with device management (MVP 06).
  */
-export const AGENT_BASE_URL = (
-  process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8100"
-).replace(/\/+$/, "");
+export const AGENT_BASE_URL = agentBaseUrl();
 const BASE = `${AGENT_BASE_URL}/api/v1`;
 
 export function agentUrl(path: string): string {

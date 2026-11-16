@@ -71,6 +71,9 @@ class Settings(BaseSettings):
 
     # HTTP
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Optional regex for additional origins, e.g. every deployment of a Vercel project:
+    # ACI_CORS_ORIGIN_REGEX=https://camera-agent(-[a-z0-9-]+)?\.vercel\.app
+    cors_origin_regex: str = ""
 
     # Edge devices (MVP 06)
     # A device is "offline" when no heartbeat arrived for max(offline_min_s, factor × its interval).

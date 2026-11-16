@@ -1,3 +1,5 @@
+import { apiBaseUrl } from "@/lib/connection";
+
 import type {
   ApiErrorBody,
   CurrentUser,
@@ -6,9 +8,8 @@ import type {
   VersionInfo,
 } from "./types";
 
-export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-).replace(/\/+$/, "");
+/** Central server address: build default, or the one chosen on the sign-in page (see lib/connection). */
+export const API_BASE_URL = apiBaseUrl();
 const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 8000;
 

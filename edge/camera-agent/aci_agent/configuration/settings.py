@@ -101,6 +101,8 @@ class AgentSettings(BaseSettings):
     secret_key: str = ""
 
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Optional regex for additional dashboard origins (e.g. a Vercel deployment and its previews).
+    cors_origin_regex: str = ""
     max_cameras: int = Field(default=32, ge=1, le=256)
     autostart_cameras: bool = True
 
