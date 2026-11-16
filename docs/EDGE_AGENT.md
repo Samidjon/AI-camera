@@ -1,4 +1,4 @@
-# Edge Agent Runtime (MVP 05)
+# Edge Agent Runtime (MVP 05, server link completed in MVP 06)
 
 The edge agent (`edge/camera-agent`) is an **autonomous program on the edge computer next to the
 cameras** — a Linux mini PC, an NVR-class box or an NVIDIA Jetson. It captures video, runs the
@@ -90,34 +90,46 @@ unconfigured ──register──► online ◄──────► offline (ba
 error: plain HTTP refused / enrollment token rejected / invalid registration response
 ```
 
-* **Heartbeat** every 30 s (server-adjustable): identity, version, hardware info, live metrics, camera
-  status counts, AI mode, vision stats, event-store stats, sync-queue stats, applied config version.
+* **Heartbeat** every 30 s (`ACI_AGENT_SERVER_HEARTBEAT_INTERVAL_S`; the server can change it only
+  through a configuration push): identity, version, hardware info, live metrics, local health
+  (database check, storage paused), camera status counts and a camera list (id, name, type, status,
+  fps, resolution, AI flag, last error — never stream URLs or credentials), AI mode, vision and
+  event-store stats, sync-queue stats, link state, applied config version. When the upload backlog is
+  cleared an extra heartbeat is sent at once, so the server shows "online" instead of "synchronizing".
 * **Upload**: batches of ≤200 events (oldest first). Unconfirmed events stay queued and are retried
   with the **same UUIDs**; the server's per-event answer makes retries idempotent. A batch the server
   rejects as a whole (413 / 422) is halved until the bad event is isolated and dropped (counted).
 * **Configuration**: when the heartbeat reply carries a newer `config_version`, the agent downloads
-  it, applies known keys (`device_name`, `ai_enabled`, `heartbeat_interval_s`), reports unknown keys
-  as `ignored` and invalid values as `errors`, stores the version and acknowledges.
+  the document, verifies its SHA-256 checksum (mismatch → `failed`, nothing applied), applies known
+  keys through the same code paths as the local API (`device_name`, `heartbeat_interval_s`,
+  `ai_enabled`, `events`, `cameras` → enable / max_fps / AI / motion settings / zones), reports unknown
+  keys as `ignored` and invalid values as `errors`, stores the version + document and acknowledges.
+  In-memory settings (`events`, `heartbeat_interval_s`) are re-applied from the stored document after
+  a restart.
+* A link stored with `http://` (lab mode) stops working when `ALLOW_INSECURE_HTTP` is turned off — the agent
+  goes to `error` instead of sending data in clear text.
+* **Credential rotation**: when the heartbeat reply says `rotate_credentials`, the agent fetches a new
+  secret, stores it encrypted, then uses it (the server keeps the old one valid until then).
 
-### Server contract (implemented by the central server in MVP 06)
+### Server contract (implemented in MVP 06 — `docs/CENTRAL_SERVER.md`)
 
 All bodies are JSON. Device calls carry `Authorization: Bearer <device secret>` and
-`X-ACI-Device-ID: <remote device id>`.
+`X-ACI-Device-ID: <device id>`.
 
 | Call | Request | Response |
 |---|---|---|
-| `POST /api/v1/devices/register` | `Authorization: Bearer <enrollment token>`; `{device_id, device_name, agent_version, hardware}` | `201 {device_id, device_secret, heartbeat_interval_s?}` |
-| `POST /api/v1/devices/{id}/heartbeat` | `{device_id, device_name, agent_version, sent_at, config_version, hardware, metrics, sync, cameras, ai, vision, events, uptime_s}` | `200 {config_version}` |
+| `POST /api/v1/devices/register` | `Authorization: Bearer <enrollment token>`; `{device_id, device_name, agent_version, hardware}` | `201 {device_id, device_secret, heartbeat_interval_s}` |
+| `POST /api/v1/devices/heartbeat` | `{device_id, device_name, agent_version, sent_at, config_version, heartbeat_interval_s, link_state, hardware, metrics, health, sync, cameras, camera_list, ai, vision, events, uptime_s}` | `200 {config_version, rotate_credentials, heartbeat_interval_s, server_time, status}` |
+| `POST /api/v1/devices/credentials/rotate` | — | `200 {device_secret}` |
 | `POST /api/v1/events/batch` | `{device_id, events: [{id, camera_id, event_type, source, occurred_at, zone_id, line_id, track_id, metadata, created_at}]}` | `200 {accepted: [id], duplicate: [id], rejected: [{id, reason}]}` |
-| `GET /api/v1/devices/{id}/configuration` | — | `200 {version, config: {…}}` |
+| `GET /api/v1/devices/{id}/configuration` | — | `200 {version, config: {…}, checksum}` |
 | `POST /api/v1/devices/{id}/configuration/ack` | `{version, status: applied\|partial\|failed, applied, ignored, errors}` | `200` |
 
-Error semantics expected by the agent: 401 / 403 = revoked (stop), 429 / 5xx / network = retry with
+Error semantics: 401 / 403 = revoked (stop, delete credential), 429 / 5xx / network = retry with
 backoff (`Retry-After` honoured), other 4xx = request rejected.
 
-**Status:** the agent side is implemented and tested against an in-process fake of this contract
-(`tests/edge_fakes.py`). The real endpoints arrive with MVP 06 — until then a linked agent stays
-`offline` and keeps its queue.
+**Status:** implemented on both sides and verified end-to-end (`tests/e2e/test_central_server.py`
+starts the real server and syncs real agents over HTTP) and live on the development machine.
 
 ## Command line
 

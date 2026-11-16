@@ -6,6 +6,7 @@ errors), TLS failure, lost acknowledgements, rejected events, revocation, config
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 import threading
@@ -32,6 +33,9 @@ class FakeCentralServer:
         self.lose_ack = False  # store the batch, then fail the response (ack lost in transit)
         self.reject_ids: set[str] = set()
         self.registrations = 0
+        self.request_rotation = False
+        self.rotations = 0
+        self.corrupt_checksum = False
 
     # ------------------------------------------------------------------ helpers
 
@@ -56,9 +60,14 @@ class FakeCentralServer:
         device_id = request.headers.get("X-ACI-Device-ID", "")
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         d = self.devices.get(device_id)
-        if d is None or d["revoked"] or not secrets.compare_digest(d["secret"], token):
+        if d is None or d["revoked"]:
             return None
-        return d
+        if secrets.compare_digest(d["secret"], token):
+            d.pop("previous", None)  # first use of the new credential retires the old one
+            return d
+        if d.get("previous") and secrets.compare_digest(d["previous"], token):
+            return d
+        return None
 
     # ------------------------------------------------------------------ routing
 
@@ -76,16 +85,28 @@ class FakeCentralServer:
             device = self._auth(request)
             if device is None:
                 return self._json(401, {"error": {"code": "device_revoked", "message": "Device revoked"}})
-            if path.endswith("/heartbeat"):
+            if path == "/api/v1/devices/heartbeat":
                 self.heartbeats.append(json.loads(request.content))
-                return self._json(200, {"config_version": self.config_version, "server_time": "now"})
+                return self._json(200, {"config_version": self.config_version, "server_time": "now",
+                                        "rotate_credentials": self.request_rotation})  # fmt: skip
+            if path == "/api/v1/devices/credentials/rotate":
+                new = secrets.token_urlsafe(32)
+                device["previous"] = device["secret"]  # stays valid until the new one is used
+                device["secret"] = new
+                self.request_rotation = False
+                self.rotations += 1
+                return self._json(200, {"device_secret": new})
             if path == "/api/v1/events/batch":
                 return self._batch(request)
             if path.endswith("/configuration/ack"):
                 self.acks.append(json.loads(request.content))
                 return self._json(200, {"ok": True})
             if path.endswith("/configuration"):
-                return self._json(200, {"version": self.config_version, "config": self.config})
+                canonical = json.dumps(self.config, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                digest = hashlib.sha256(canonical.encode()).hexdigest()
+                if self.corrupt_checksum:
+                    digest = "0" * 64
+                return self._json(200, {"version": self.config_version, "config": self.config, "checksum": digest})
         return self._json(404, {"error": {"code": "not_found", "message": "Not found"}})
 
     def _register(self, request: httpx.Request) -> httpx.Response:

@@ -41,6 +41,10 @@ an edge being online; the dashboard only talks to the server's public API.
 | API | `app/api/v1/` | Versioned routers; `deps.py` holds auth dependencies and the permission guard |
 | Migrations | `alembic/` | Hand-written, dialect-portable migrations (PostgreSQL + SQLite) |
 | CLI | `app/cli.py` | `create-user`, `check-db` |
+| Devices (MVP 06) | `app/services/devices.py`, `app/services/device_config.py`, `app/api/device_auth.py` | Enrollment, device auth (hashed secrets), heartbeat → status, camera registry sync, rotation, revocation; versioned configuration with conflicts, ack, rollback |
+| Event Processor (MVP 06) | `app/processing/event_processor.py` | Per-event validation, device rights, idempotent insert (`ON CONFLICT DO NOTHING RETURNING`), hourly aggregates — independent of HTTP |
+| Real-time (MVP 06) | `app/realtime/hub.py`, `app/api/v1/endpoints/realtime.py` | WebSocket fan-out with per-permission filtering and bounded per-client queues; offline monitor in `app/main.py` |
+| Rate limiting | `app/core/ratelimit.py` | In-process token buckets per device / IP, 429 + Retry-After |
 
 ### apps/dashboard
 
@@ -121,6 +125,13 @@ boundaries (`camera-event.schema.json`).
 | D29 | **HTTPS mandatory for the server link** (explicit lab-only override) | Event data and device credentials cross networks. |
 | D30 | **Retention never deletes un-uploaded events; disk protection may (counted)** | Offline weeks must not lose data, but a full disk must not stop capture. |
 | D31 | **Installed as a hardened systemd service under a dedicated user** | Restricted permissions, auto-restart, no root at runtime. Not installed into camera firmware. |
+| D32 | **Device secrets and enrollment tokens stored as SHA-256 only** (MVP 06) | 256-bit random values: a hash is enough to verify and useless if the DB leaks. |
+| D33 | **Rotation keeps the old secret valid until the new one is first used** | A lost rotation reply must never lock a device out; then a short grace period. |
+| D34 | **Status derived on the server from heartbeats** (+ offline monitor) | One definition for all clients; devices only report facts. |
+| D35 | **Configuration = immutable versions, optimistic concurrency (`base_version`), rollback = new version** | Audit trail, no lost updates between administrators, safe undo. |
+| D36 | **Event Processor independent of HTTP, idempotent by UUID at the database** | Correct under retries and concurrency; can move to a worker behind a queue later. |
+| D37 | **WebSocket auth by first message, in-process hub** | No tokens in URLs/logs; Redis pub/sub when the API scales to several workers (MVP 09). |
+| D38 | **Cameras table = registry reported by devices** (`device_id` + agent camera id) | Central view of every camera without copying stream URLs or credentials off the edge. |
 
 ## Error format
 

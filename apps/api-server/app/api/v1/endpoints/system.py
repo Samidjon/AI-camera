@@ -6,13 +6,15 @@ from fastapi import APIRouter, Request
 
 from app import __version__
 from app.api.deps import SettingsDep
+from app.core.ratelimit import limiter
+from app.realtime.hub import hub
 from app.schemas.system import (
     ComponentState,
     OverallState,
     SystemStatusResponse,
     VersionResponse,
 )
-from app.services.health import check_database, check_redis
+from app.services.health import check_database, check_redis, device_counts
 
 router = APIRouter()
 
@@ -41,6 +43,9 @@ def system_status(request: Request, settings: SettingsDep) -> SystemStatusRespon
         started_at=request.app.state.started_at,
         timestamp=datetime.now(UTC),
         components=components,
+        devices=device_counts(settings) if db_state == ComponentState.OK else None,
+        event_processor=dict(request.app.state.event_processor.stats),
+        realtime={"websocket_clients": hub.client_count, "published": hub.published, "rate_limited": limiter.rejected},
     )
 
 

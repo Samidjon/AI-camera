@@ -6,6 +6,7 @@ never returned by the API or written to logs.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -85,6 +86,27 @@ class ServerLinkRepository:
                 "revoked_at, config_version, updated_at) VALUES (1, ?, ?, ?, ?, NULL, 0, ?)",
                 (server_url, remote_device_id, token, now, now),
             )
+
+    def update_secret(self, device_secret: str) -> None:
+        token = self._box.encrypt_json({"device_secret": device_secret})
+        self._db.execute("UPDATE server_link SET credentials = ?, updated_at = ? WHERE id = 1", (token, _now()))
+
+    def config_document(self) -> dict | None:
+        rows = self._db.query("SELECT config_document FROM server_link WHERE id = 1")
+        if not rows or not rows[0]["config_document"]:
+            return None
+        try:
+            return json.loads(rows[0]["config_document"])
+        except ValueError:
+            return None
+
+    def set_config_document(self, version: int, document: dict) -> None:
+        now = _now()
+        self._db.execute(
+            "UPDATE server_link SET config_version = ?, config_document = ?, config_applied_at = ?, updated_at = ? "
+            "WHERE id = 1",
+            (version, json.dumps(document, sort_keys=True), now, now),
+        )
 
     def mark_revoked(self) -> None:
         now = _now()

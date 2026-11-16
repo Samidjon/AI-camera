@@ -25,19 +25,20 @@ class CameraEvent(Base):
         CheckConstraint("source IN ('standard', 'ai', 'system')", name="source_valid"),
         Index("ix_camera_events_camera_id_occurred_at", "camera_id", "occurred_at"),
         Index("ix_camera_events_event_type_occurred_at", "event_type", "occurred_at"),
+        Index("ix_camera_events_device_id_occurred_at", "device_id", "occurred_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     # Events outlive camera records for audit/analytics, hence SET NULL.
-    camera_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("cameras.id", ondelete="SET NULL")
-    )
+    camera_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cameras.id", ondelete="SET NULL"))
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False, default=EventSource.STANDARD.value)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Source device and the agent-local camera id (kept even if the device / camera is deleted).
+    device_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("edge_devices.id", ondelete="SET NULL"))
+    camera_ref: Mapped[str | None] = mapped_column(String(64))
+    line_id: Mapped[str | None] = mapped_column(String(64))
     zone_id: Mapped[str | None] = mapped_column(String(64))
     track_id: Mapped[str | None] = mapped_column(String(64))
     # "metadata" is reserved on declarative classes; keep the DB column name.

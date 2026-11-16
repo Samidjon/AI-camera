@@ -32,6 +32,14 @@ EXPECTED_TABLES = {
     "camera_events",
     "system_logs",
     "audit_logs",
+    "device_groups",
+    "edge_devices",
+    "device_credentials",
+    "device_enrollment_tokens",
+    "device_heartbeats",
+    "synchronization_logs",
+    "device_configurations",
+    "event_statistics",
 }
 
 
@@ -120,10 +128,14 @@ def test_postgres_upgrade_downgrade_cycle():
     try:
         assert EXPECTED_TABLES <= set(inspect(eng).get_table_names())
         with eng.connect() as conn:
-            rls = conn.execute(
-                text("SELECT relname FROM pg_class WHERE relrowsecurity AND relname = ANY(:t)"),
-                {"t": list(EXPECTED_TABLES)},
-            ).scalars().all()
+            rls = (
+                conn.execute(
+                    text("SELECT relname FROM pg_class WHERE relrowsecurity AND relname = ANY(:t)"),
+                    {"t": list(EXPECTED_TABLES)},
+                )
+                .scalars()
+                .all()
+            )
         assert set(rls) == EXPECTED_TABLES
     finally:
         eng.dispose()

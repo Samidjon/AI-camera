@@ -1,6 +1,13 @@
-# Event Processor — not implemented yet
+# Event Processor
 
-Status: **placeholder (MVP 01)**. Implementation: MVP 06.
+Status: **implemented in MVP 06** as an independent module of the central server:
+[`apps/api-server/app/processing/event_processor.py`](../../apps/api-server/app/processing/event_processor.py).
 
-Will receive event batches from edge agents, validate them against `shared/schemas/camera-event.schema.json`,
-de-duplicate by event UUID, store them in PostgreSQL (`camera_events`) and update aggregates.
+It validates event batches from edge agents, checks the device's rights, de-duplicates by event UUID
+(`ON CONFLICT DO NOTHING`), stores events in PostgreSQL (`camera_events`) and updates hourly
+aggregates (`event_statistics`) — see [docs/CENTRAL_SERVER.md](../../docs/CENTRAL_SERVER.md).
+
+It has no dependency on the HTTP layer (it takes a database session, the authenticated device and
+raw events), so it can be moved into its own worker process behind a queue when the server is
+scaled horizontally (planned with Redis, MVP 09). Until then it runs inside the API process — this
+directory is kept as the place for that worker.

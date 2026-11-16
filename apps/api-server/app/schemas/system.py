@@ -36,6 +36,9 @@ class SystemStatusResponse(BaseModel):
     started_at: datetime
     timestamp: datetime
     components: dict[str, ComponentHealth]
+    devices: dict | None = None  # counts by status (None when the database is unavailable)
+    event_processor: dict | None = None
+    realtime: dict | None = None
 
 
 class VersionResponse(BaseModel):

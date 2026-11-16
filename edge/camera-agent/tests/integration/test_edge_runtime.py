@@ -232,6 +232,11 @@ def test_plain_http_refused_unless_allowed(tmp_path: Path, server: FakeCentralSe
     lab.net.register("http://central.example.test", ENROLLMENT_TOKEN)
     assert lab.net.status()["tls"]["https"] is False
     lab.close()
+    strict = Runtime(tmp_path / "lab", server)  # same device, insecure override removed
+    strict.emit(2)
+    strict.net.step()
+    assert strict.net.state == LinkState.ERROR and server.received_batches == 0
+    strict.close()
 
 
 # ---------------------------------------------------------------------------- revocation
@@ -292,6 +297,48 @@ def test_invalid_configuration_value_is_reported(rt: Runtime, server: FakeCentra
     ack = server.acks[-1]
     assert ack["status"] == "partial" and "heartbeat_interval_s" in ack["errors"]
     assert rt.identity.device_name == "ok-name"
+
+
+def test_credential_rotation_requested_by_server(rt: Runtime, server: FakeCentralServer):
+    registered(rt)
+    old = rt.links.secret()
+    server.request_rotation = True
+    rt.net.step()
+    assert server.rotations == 1 and rt.net.rotations == 1
+    new = rt.links.secret()
+    assert new != old and new == server.devices[rt.identity.device_id]["secret"]
+    rt.reopen()  # the new credential was persisted (encrypted) before use
+    rt.net._next_heartbeat = 0
+    rt.net.step()
+    assert rt.net.state == LinkState.ONLINE
+    assert "previous" not in server.devices[rt.identity.device_id]
+
+
+def test_configuration_checksum_mismatch_is_not_applied(rt: Runtime, server: FakeCentralServer):
+    registered(rt)
+    server.corrupt_checksum = True
+    server.push_config({"device_name": "tampered"})
+    rt.net.step()
+    assert rt.identity.device_name == "edge-test"
+    ack = server.acks[-1]
+    assert ack["status"] == "failed" and ack["errors"] == {"_document": "checksum mismatch"}
+
+
+def test_runtime_configuration_survives_restart(rt: Runtime, server: FakeCentralServer):
+    from aci_agent.synchronization.appliers import _apply_events
+
+    registered(rt)
+    rt.net._appliers["events"] = lambda v: _apply_events(rt.store, v)
+    server.push_config({"events": {"retention_days": 11}, "heartbeat_interval_s": 45})
+    rt.net.step()
+    assert rt.store.settings.retention_days == 11 and rt.net._heartbeat_interval == 45
+    rt.close()
+    rt._open()
+    assert rt.store.settings.retention_days == 30  # store defaults before the manager re-applies
+    rt.net._appliers["events"] = lambda v: _apply_events(rt.store, v)
+    rt.net._reapply_runtime_settings()
+    assert rt.store.settings.retention_days == 11 and rt.net._heartbeat_interval == 45
+    assert rt.links.get().config_version == 1
 
 
 # ---------------------------------------------------------------------------- queue, retention, restart

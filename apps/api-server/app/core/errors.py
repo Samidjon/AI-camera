@@ -23,10 +23,13 @@ class AppError(Exception):
     status_code: int = status.HTTP_400_BAD_REQUEST
     code: str = "bad_request"
 
-    def __init__(self, message: str, *, details: Any = None, code: str | None = None) -> None:
+    def __init__(
+        self, message: str, *, details: Any = None, code: str | None = None, headers: dict[str, str] | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.details = details
+        self.headers = headers
         if code:
             self.code = code
 
@@ -49,6 +52,11 @@ class AuthenticationError(AppError):
 class PermissionDeniedError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
     code = "forbidden"
+
+
+class RateLimitedError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "rate_limited"
 
 
 class ServiceUnavailableError(AppError):
@@ -81,11 +89,13 @@ _HTTP_CODES = {
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
-        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        headers = dict(exc.headers or {})
+        if exc.status_code == 401:
+            headers.setdefault("WWW-Authenticate", "Bearer")
         return JSONResponse(
             status_code=exc.status_code,
             content=_envelope(exc.code, exc.message, exc.details),
-            headers=headers,
+            headers=headers or None,
         )
 
     @app.exception_handler(StarletteHTTPException)
@@ -99,10 +109,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-        errors = [
-            {"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")}
-            for e in exc.errors()
-        ]
+        errors = [{"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
         return JSONResponse(
             status_code=422,
             content=_envelope("validation_error", "Request validation failed", errors),

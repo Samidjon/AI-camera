@@ -141,3 +141,40 @@ def test_revocation_through_api_keeps_cameras_running(
     d = c.get("/api/v1/device", headers=auth()).json()
     assert d["sync"]["link"]["revoked"] is True
     assert "secret" not in str(d).lower().replace("device_secret", "")
+
+
+def test_central_configuration_applies_camera_motion_zones_and_events(
+    linked_client: TestClient, factory: FakeFactory, central: FakeCentralServer
+):
+    c = linked_client
+    assert wait_for(lambda: bool(central.heartbeats), 5)
+    _add_cameras(c, factory, 2)
+    cams = c.get("/api/v1/cameras", headers=auth()).json()
+    a, b = cams[0]["id"], cams[1]["id"]
+    central.push_config({
+        "ai_enabled": False,
+        "events": {"retention_days": 12},
+        "cameras": {
+            a: {"max_fps": 5, "ai_enabled": False, "motion": {"sensitivity": 90, "algorithm": "knn"},
+                "zones": [{"name": "Door", "role": "monitor", "polygon": [[0, 0], [0.5, 0], [0.5, 0.5]]}]},
+            b: {"is_enabled": False},
+            "missing-camera": {"max_fps": 2},
+        },
+    })  # fmt: skip
+    c.app.state.network._next_heartbeat = 0
+    c.post("/api/v1/device/sync", headers=auth())
+    assert wait_for(lambda: bool(central.acks), 8)
+    ack = central.acks[-1]
+    assert ack["status"] == "partial" and "missing-camera" in ack["errors"]["cameras"]
+    assert set(ack["applied"]) >= {"ai_enabled", "events"}
+    cam_a = c.get(f"/api/v1/cameras/{a}", headers=auth()).json()
+    assert cam_a["options"]["max_fps"] == 5 and cam_a["options"]["ai_enabled"] is False
+    vision = c.get(f"/api/v1/cameras/{a}/vision", headers=auth()).json()["config"]
+    assert vision["sensitivity"] == 90 and vision["algorithm"] == "knn"
+    assert [z["name"] for z in c.get(f"/api/v1/cameras/{a}/zones", headers=auth()).json()] == ["Door"]
+    assert c.get(f"/api/v1/cameras/{b}", headers=auth()).json()["is_enabled"] is False
+    assert c.app.state.events.settings.retention_days == 12
+    assert c.get("/api/v1/ai/status", headers=auth()).json()["enabled"] is False
+    hb = central.heartbeats[-1]
+    assert {cam["id"] for cam in hb["camera_list"]} == {a, b}
+    assert "source_uri" not in str(hb["camera_list"])  # no stream URLs / credentials leave the device

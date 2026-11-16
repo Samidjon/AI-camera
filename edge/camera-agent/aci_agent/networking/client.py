@@ -166,7 +166,11 @@ class ServerClient:
         )
 
     def heartbeat(self, payload: dict) -> dict:
-        return self._request("POST", f"/api/v1/devices/{self.device_id}/heartbeat", json=payload)
+        # The device is identified by its credential + X-ACI-Device-ID header.
+        return self._request("POST", "/api/v1/devices/heartbeat", json=payload)
+
+    def rotate_credentials(self) -> dict:
+        return self._request("POST", "/api/v1/devices/credentials/rotate")
 
     def upload_events(self, events: list[dict]) -> dict:
         return self._request("POST", "/api/v1/events/batch", json={"device_id": self.device_id, "events": events})

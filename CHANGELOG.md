@@ -3,6 +3,47 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.6.0] — MVP 06 Central Server — 2026-11-16
+
+### Added
+- **Device management** on the central server: enrollment tokens (hashed, expiring, N uses),
+  registration, device authentication (hashed per-device secrets + `X-ACI-Device-ID`), list / details /
+  rename / groups, revocation, deletion (events kept), credential rotation (automatic after 90 days or
+  on request; old secret valid until the new one is used + grace).
+- **Device status** derived from heartbeats: online / synchronizing / degraded / error / offline /
+  revoked / pending, with reason; background offline monitor; AI and camera status shown separately;
+  camera registry synced from heartbeats (no stream URLs / credentials leave the edge); heartbeat history.
+- **Event Processor** (independent module): per-event validation, device rights, idempotent storage by
+  UUID (`ON CONFLICT DO NOTHING`), hourly aggregates, sync log; events API with filters and cursor
+  pagination, statistics endpoints.
+- **Versioned device configuration**: merge-patch edits with `base_version` conflict detection (409),
+  validation of camera / motion / zone / AI / event / retention settings, checksum-verified delivery,
+  acknowledgement (applied / partial / failed), rollback as a new version, history.
+- **WebSocket** `/api/v1/ws` (first-message auth): device status, camera status, new events,
+  synchronization status, system notifications; permission-filtered, bounded per-client queues.
+- Rate limiting (per device / IP, `Retry-After`), audit log entries for all device actions,
+  `/system/status` reports devices, event-processor counters and real-time stats.
+- Migration 0002 (8 new tables, `cameras` / `camera_events` linked to devices, RLS).
+- Edge agent: heartbeat endpoint per spec, camera list + local health in heartbeats, credential
+  rotation, configuration checksum verification, appliers for cameras / motion / zones / events,
+  configuration document persisted and re-applied after restart, immediate heartbeat when the upload
+  backlog clears.
+- Dashboard **Devices → Fleet**: live device table, add-device dialog (enrollment token), device panel
+  (health, cameras, configuration editor with versions / rollback, sync log, rotate / revoke / delete),
+  live notifications.
+- Tests: 18 server integration tests, 4 new agent tests, an **end-to-end test** that starts the real
+  server and syncs real agents over HTTP. Docs: `docs/CENTRAL_SERVER.md`.
+
+### Fixed
+- Device API returned naive timestamps on SQLite (browser showed heartbeats hours off); all device
+  schemas now serialize UTC with an offset.
+- The agent took the server's suggested heartbeat interval at registration, overriding its own
+  configuration; the interval now changes only through a configuration push.
+
+### Not verified
+- Migration 0002 on the live Supabase project (PostgreSQL DDL rendering is tested offline).
+- TLS termination and several API workers (WebSocket hub and rate limiter are per process).
+
 ## [0.5.0] — MVP 05 Edge Runtime — 2026-11-16
 
 ### Added

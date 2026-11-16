@@ -36,6 +36,33 @@ The **edge agent** has its own API (`/api/v1` on port 8100, docs at `/docs`) —
 **device ↔ central-server contract** (registration, heartbeat, `/events/batch`, configuration) that the
 central server implements in MVP 06: [EDGE_AGENT.md](EDGE_AGENT.md).
 
+### Edge devices, events, real time (MVP 06)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/devices/register` | enrollment token | Device registration → device secret (once) |
+| POST | `/devices/heartbeat` | device | Health report; reply: desired config version, rotation flag |
+| POST | `/devices/credentials/rotate` | device | New device secret |
+| POST / GET | `/devices/enrollment-tokens` | devices:manage | Create (token shown once) / list |
+| DELETE | `/devices/enrollment-tokens/{id}` | devices:manage | Revoke token |
+| GET | `/devices`, `/devices/{id}` | devices:read | List (filters `status`, `group_id`) / details incl. cameras |
+| PATCH / DELETE | `/devices/{id}` | devices:manage | Rename, describe, group / revoke + delete |
+| POST | `/devices/{id}/revoke`, `/devices/{id}/rotate-credentials` | devices:manage | Revoke / request rotation |
+| GET | `/devices/{id}/heartbeats`, `/devices/{id}/sync-logs` | devices:read | History |
+| GET | `/devices/{id}/configuration` | devices:read or the device | Current version (device: document + checksum) |
+| PATCH | `/devices/{id}/configuration` | devices:manage | `{base_version, config, replace?, comment?}` → new version; 409 on conflict |
+| POST | `/devices/{id}/configuration/rollback` | devices:manage | `{to_version, base_version}` |
+| GET | `/devices/{id}/configuration/history` | devices:read | Versions with acknowledgement |
+| POST | `/devices/{id}/configuration/ack` | device | `{version, status, applied, ignored, errors}` |
+| GET / POST / PATCH / DELETE | `/device-groups[/{id}]` | read / manage | Device groups |
+| POST | `/events/batch` | device | Idempotent upload → `{accepted, duplicate, rejected}` |
+| GET | `/events` | events:read | Filters `device_id`, `camera_ref`, `event_type` (multi), `source`, `since`, `until`; cursor pagination |
+| GET | `/events/{id}`, `/events/statistics`, `/events/statistics/summary` | events:read | Event / hourly aggregates / totals |
+| WS | `/ws` | first message `{type:"auth", token}` | Live `device.status`, `camera.status`, `event.created`, `sync.status`, `system.notification` |
+
+Device authentication: `Authorization: Bearer <device secret>` + `X-ACI-Device-ID`. 429 responses carry
+`Retry-After`. Details: [CENTRAL_SERVER.md](CENTRAL_SERVER.md).
+
 Roles (seeded): `administrator` (`*`), `operator`, `viewer`. Endpoints added in later MVPs protect
 themselves with `Depends(require_permission("cameras:control"))`.
 

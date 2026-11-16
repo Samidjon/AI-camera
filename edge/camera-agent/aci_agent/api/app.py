@@ -72,6 +72,7 @@ from aci_agent.storage.backup import create_backup
 from aci_agent.storage.database import Database
 from aci_agent.storage.repository import CameraRepository, DuplicateNameError
 from aci_agent.storage.vision_repository import VisionRepository
+from aci_agent.synchronization.appliers import build_config_appliers
 from aci_agent.synchronization.manager import NetworkManager
 from aci_agent.video.frame_buffer import LatestFrameBuffer
 
@@ -133,8 +134,26 @@ def create_app(
     identity = DeviceIdentity(agent_db, settings.device_name or None)
     hardware = HardwareMonitor(settings.data_dir)
 
+    def camera_list() -> list[dict]:
+        out = []
+        for v in mgr.list_cameras():
+            c, r = v.config, v.runtime
+            out.append({
+                "id": c.id, "name": c.name, "location": c.location, "source_type": str(c.source_type),
+                "is_enabled": c.is_enabled, "ai_enabled": c.options.get("ai_enabled", True),
+                "status": str(r.status), "fps": r.fps, "width": r.width, "height": r.height,
+                "last_error": redact(r.last_error)[:300] if r.last_error else None,
+            })  # fmt: skip
+        return out
+
     def heartbeat_status() -> dict:
+        try:
+            db_ok = agent_db.integrity_ok() and events.db.integrity_ok()
+        except Exception:  # noqa: BLE001
+            db_ok = False
         return {
+            "camera_list": camera_list(),
+            "health": {"database_ok": db_ok, "storage_paused": events.storage_paused},
             "cameras": {"total": mgr.repo.count(), "by_status": mgr.status_counts()},
             "ai": {"enabled": ai.config.enabled, "mode": ai.mode.value, "reason": ai.mode_reason},
             "vision": vision.stats(),
@@ -145,7 +164,7 @@ def create_app(
     network = NetworkManager(
         settings.server, identity, ServerLinkRepository(agent_db, box), events,
         status_provider=heartbeat_status, metrics_provider=hardware.sample,
-        config_appliers={"ai_enabled": lambda v: ai.set_enabled(bool(v))}, transport=server_transport,
+        config_appliers=build_config_appliers(mgr, vision, vision_repo, ai, events), transport=server_transport,
     )  # fmt: skip
 
     def backup_now() -> dict:

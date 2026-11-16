@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -9,6 +11,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
+import anyio
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,9 +20,36 @@ from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, request_id_ctx
-from app.db.session import set_engine
+from app.db.session import session_scope, set_engine
+from app.processing.event_processor import EventProcessor
+from app.realtime.hub import hub
+from app.services.devices import mark_stale_devices, prune_heartbeats
 
 logger = logging.getLogger("aci.http")
+monitor_logger = logging.getLogger("aci.devices.monitor")
+
+
+def _monitor_once(settings: Settings, prune: bool) -> None:
+    with session_scope(settings) as db:
+        mark_stale_devices(db, settings)
+        if prune:
+            prune_heartbeats(db, settings)
+
+
+async def device_monitor(settings: Settings) -> None:
+    """Marks devices offline when their heartbeats stop; prunes old heartbeats hourly."""
+    last_prune = 0.0
+    while True:
+        await asyncio.sleep(settings.device_monitor_interval_s)
+        if not settings.database_configured:
+            continue
+        prune = time.monotonic() - last_prune > 3600
+        try:
+            await anyio.to_thread.run_sync(_monitor_once, settings, prune)
+            if prune:
+                last_prune = time.monotonic()
+        except Exception as exc:  # noqa: BLE001 - the monitor must survive DB outages
+            monitor_logger.warning("Device monitor pass failed: %s", type(exc).__name__)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -30,11 +60,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.started_at = datetime.now(UTC)
         app.state.started_monotonic = time.monotonic()
+        hub.bind(asyncio.get_running_loop())
+        monitor = asyncio.create_task(device_monitor(settings))
         logger.info(
             "API starting",
             extra={"environment": settings.environment, "db_configured": settings.database_configured},
         )
         yield
+        monitor.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await monitor
+        hub.bind(None)
         set_engine(None)  # dispose pool on shutdown
         logger.info("API stopped")
 
@@ -51,6 +87,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Defaults so endpoints work even if lifespan isn't run (e.g. some test clients).
     app.state.started_at = datetime.now(UTC)
     app.state.started_monotonic = time.monotonic()
+    app.state.settings = settings
+    app.state.event_processor = EventProcessor(
+        max_future_skew_s=settings.events_max_future_skew_s, max_age_days=settings.events_max_age_days
+    )
 
     app.add_middleware(
         CORSMiddleware,

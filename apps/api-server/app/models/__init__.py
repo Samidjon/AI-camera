@@ -2,10 +2,32 @@
 
 from app.models.audit import AuditLog, SystemLog
 from app.models.camera import Camera, CameraGroup, CameraSourceType, CameraStatus
+from app.models.device import (
+    ConfigStatus,
+    DeviceConfiguration,
+    DeviceCredential,
+    DeviceGroup,
+    DeviceHeartbeat,
+    DeviceStatus,
+    EdgeDevice,
+    EnrollmentToken,
+    EventStatistic,
+    SynchronizationLog,
+)
 from app.models.event import CameraEvent, EventSource
 from app.models.user import Role, User
 
 __all__ = [
+    "ConfigStatus",
+    "DeviceConfiguration",
+    "DeviceCredential",
+    "DeviceGroup",
+    "DeviceHeartbeat",
+    "DeviceStatus",
+    "EdgeDevice",
+    "EnrollmentToken",
+    "EventStatistic",
+    "SynchronizationLog",
     "AuditLog",
     "Camera",
     "CameraEvent",

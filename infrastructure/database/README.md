@@ -34,6 +34,15 @@ Supabase Table Editor, or the migration history will drift.
 For offline development the API server can run on SQLite:
 `ACI_DATABASE_URL=sqlite:///./dev.db`. Production must use PostgreSQL.
 
+## Tables (migration 0002 — MVP 06)
+
+`edge_devices`, `device_credentials` (SHA-256 hashes only), `device_enrollment_tokens` (hashes),
+`device_groups`, `device_heartbeats`, `synchronization_logs`, `device_configurations` (immutable
+versions, unique `(device_id, version)`), `event_statistics` (unique hourly bucket); `cameras` gains
+`device_id` / `external_id` (unique pair), `camera_events` gains `device_id` / `camera_ref` /
+`line_id` with index `(device_id, occurred_at)`. RLS enabled on all new tables. Details:
+[docs/CENTRAL_SERVER.md](../../docs/CENTRAL_SERVER.md).
+
 ## Tables (migration 0001)
 
 | Table | Purpose | Key constraints / indexes |

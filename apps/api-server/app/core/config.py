@@ -72,6 +72,29 @@ class Settings(BaseSettings):
     # HTTP
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Edge devices (MVP 06)
+    # A device is "offline" when no heartbeat arrived for max(offline_min_s, factor × its interval).
+    device_offline_factor: float = Field(default=3.0, ge=1.5, le=20)
+    device_offline_min_s: int = Field(default=90, ge=15, le=3600)
+    device_heartbeat_interval_s: int = Field(default=30, ge=5, le=3600)
+    # Device credentials older than this are rotated automatically (device is told in the heartbeat reply).
+    device_credential_max_age_days: int = Field(default=90, ge=1, le=3650)
+    # After a rotation the previous credential stays valid this long (in-flight requests, lost replies).
+    device_credential_grace_s: int = Field(default=600, ge=0, le=86400)
+    enrollment_token_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
+    heartbeat_retention_days: int = Field(default=7, ge=1, le=365)
+    # Event ingestion
+    events_batch_max: int = Field(default=1000, ge=1, le=10_000)
+    events_max_future_skew_s: int = Field(default=300, ge=0, le=86400)
+    events_max_age_days: int = Field(default=400, ge=1, le=3650)
+    # Rate limits (per device / per client IP), token bucket: sustained rate per second + burst
+    rate_events_per_s: float = Field(default=10, gt=0)
+    rate_events_burst: int = Field(default=40, ge=1)
+    rate_heartbeat_per_s: float = Field(default=1, gt=0)
+    rate_heartbeat_burst: int = Field(default=5, ge=1)
+    rate_register_per_min: float = Field(default=10, gt=0)
+    device_monitor_interval_s: float = Field(default=10, ge=0.2, le=600)
+
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_json: bool = True

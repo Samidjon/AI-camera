@@ -23,6 +23,8 @@ token rejected).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import threading
 import time
@@ -117,6 +119,9 @@ class NetworkManager:
         self.heartbeats = 0
         self.config_applied: dict | None = None
         store.settings.sync_queue_max = settings.sync_queue_max
+        self.rotations = 0
+        self._reported_pending = 0  # queue length in the last heartbeat
+        self._reapply_runtime_settings()
         link = links.get()
         # Queue new events only while there is a live link (otherwise the queue would fill for nothing).
         store.set_sync_enabled(bool(link and link.has_credentials and not link.revoked_at), clear_queue=False)
@@ -187,6 +192,19 @@ class NetworkManager:
             "config_applied": self.config_applied,
         }
 
+    # Keys whose effect lives only in memory (others are persisted by their own repositories when applied).
+    RUNTIME_KEYS = ("events", "heartbeat_interval_s")
+
+    def _reapply_runtime_settings(self) -> None:
+        """After a restart, re-apply the in-memory parts of the last central configuration."""
+        doc = self.links.config_document() or {}
+        for key in self.RUNTIME_KEYS:
+            if key in doc and key in self._appliers:
+                try:
+                    self._appliers[key](doc[key])
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Stored configuration key %s not re-applied: %s", key, exc)
+
     # ------------------------------------------------------------------ registration
 
     def _make_client(self, url: str) -> ServerClient:
@@ -230,9 +248,8 @@ class NetworkManager:
                 self._client.close()
             client.set_credentials(remote_id, secret)
             self._client = client
-            interval = response.get("heartbeat_interval_s")
-            if interval is not None:
-                self._apply_heartbeat_interval(interval)
+            # The heartbeat interval stays as configured locally; the server changes it only through a
+            # versioned configuration push (heartbeat_interval_s), which is acknowledged and auditable.
             self.store.set_sync_enabled(True)
             self._backoff.reset()
             self._next_heartbeat = 0.0
@@ -265,6 +282,10 @@ class NetworkManager:
                 self.store.sync_enabled = False
                 self._set_state(LinkState.REVOKED, "device revoked by the central server — re-register to resume")
                 return 60.0
+            if link.server_url.startswith("http://") and not self.settings.allow_insecure_http:
+                # Linked in lab mode earlier; the policy now requires HTTPS → never send data in clear text.
+                self._set_state(LinkState.ERROR, "stored server URL uses plain HTTP, which is no longer allowed")
+                return 60.0
             if self._client is None or self._client.base_url != link.server_url:
                 secret = self.links.secret()
                 if secret is None:
@@ -278,6 +299,10 @@ class NetworkManager:
                     self._heartbeat(link.config_version)
                     self._next_heartbeat = time.monotonic() + self._heartbeat_interval
                 more = self._upload_batch()
+                if not more and self._reported_pending and self.store.sync_stats()["pending"] == 0:
+                    # Backlog cleared: tell the server now instead of at the next scheduled heartbeat.
+                    self._next_heartbeat = 0.0
+                    more = True
             except ServerUnavailable as exc:
                 self._set_state(LinkState.OFFLINE, "central server unreachable — events are queued locally", str(exc))
                 return self._backoff.next_delay(exc.retry_after)
@@ -349,11 +374,14 @@ class NetworkManager:
             "agent_version": __version__,
             "sent_at": _iso_now(),
             "config_version": applied_version,
+            "heartbeat_interval_s": int(self._heartbeat_interval),
+            "link_state": self.state.value,
             "hardware": hardware_info(),
             "metrics": metrics,
             "sync": self.store.sync_stats(),
             **extra,
         }
+        self._reported_pending = int(payload["sync"].get("pending") or 0)
         reply = self._client.heartbeat(payload)
         self.heartbeats += 1
         self.links.touch("last_heartbeat_at")
@@ -361,8 +389,23 @@ class NetworkManager:
             server_version = int(reply.get("config_version") or 0)
         except (TypeError, ValueError):
             server_version = 0
+        if reply.get("rotate_credentials") is True:
+            self._rotate_credentials()
         if server_version > applied_version:
             self._sync_configuration()
+
+    def _rotate_credentials(self) -> None:
+        """Server asked for a new credential. Store it before using it; the old one stays valid on the
+        server until the new one is first used, so a crash in between can't lock the device out."""
+        assert self._client is not None
+        reply = self._client.rotate_credentials()
+        secret = str(reply.get("device_secret") or "")
+        if len(secret) < 16:
+            raise ServerRejected("Invalid credential rotation response", 200)
+        self.links.update_secret(secret)
+        self._client.set_credentials(self._client.device_id or self.identity.device_id, secret)
+        self.rotations += 1
+        logger.info("Device credential rotated")
 
     def _sync_configuration(self) -> None:
         assert self._client is not None
@@ -372,6 +415,17 @@ class NetworkManager:
         except (KeyError, TypeError, ValueError):
             raise ServerRejected("Configuration document has no valid version", 200) from None
         values = doc.get("config") or {}
+        expected = doc.get("checksum")
+        if expected is not None:
+            actual = hashlib.sha256(
+                json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+            ).hexdigest()
+            if actual != expected:
+                logger.error("Configuration v%s rejected: checksum mismatch", version)
+                failed = {"version": version, "status": "failed", "applied": [], "ignored": []}
+                self._client.ack_configuration(failed | {"errors": {"_document": "checksum mismatch"}})
+                self.links.set_config_version(version)
+                return
         applied, ignored, errors = [], [], {}
         if isinstance(values, dict):
             for key, value in values.items():
@@ -387,7 +441,7 @@ class NetworkManager:
         result = "applied" if not errors else ("partial" if applied else "failed")
         # Record the version even when partial/failed: retrying an invalid document forever helps no one;
         # the server sees the outcome in the acknowledgement.
-        self.links.set_config_version(version)
+        self.links.set_config_document(version, values if isinstance(values, dict) else {})
         self.config_applied = {"version": version, "status": result, "applied": applied,
                                "ignored": ignored, "errors": errors, "at": _iso_now()}  # fmt: skip
         logger.info("Configuration v%s from the central server: %s", version, result,

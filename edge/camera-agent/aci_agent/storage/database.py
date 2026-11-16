@@ -127,6 +127,9 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_system_logs_at ON system_logs(at)
     """,
+    """
+    ALTER TABLE server_link ADD COLUMN config_document TEXT
+    """,
 ]
 
 # Separate database for events: high write volume, own retention, can be quarantined and rebuilt

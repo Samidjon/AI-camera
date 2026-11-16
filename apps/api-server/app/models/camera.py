@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +57,7 @@ class Camera(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "cameras"
     __table_args__ = (
         CheckConstraint(f"source_type IN ({_in(CameraSourceType)})", name="source_type_valid"),
+        UniqueConstraint("device_id", "external_id", name="uq_cameras_device_id_external_id"),
         CheckConstraint(f"status IN ({_in(CameraStatus)})", name="status_valid"),
         CheckConstraint("fps IS NULL OR fps >= 0", name="fps_non_negative"),
         CheckConstraint(
@@ -68,17 +70,18 @@ class Camera(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     location: Mapped[str | None] = mapped_column(String(255))
     source_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=CameraStatus.OFFLINE.value, index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=CameraStatus.OFFLINE.value, index=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    group_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("camera_groups.id", ondelete="SET NULL"), index=True
-    )
+    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("camera_groups.id", ondelete="SET NULL"), index=True)
     resolution_width: Mapped[int | None] = mapped_column(Integer)
     resolution_height: Mapped[int | None] = mapped_column(Integer)
     fps: Mapped[float | None] = mapped_column(Float)
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_frame_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # MVP 06: cameras are reported by edge devices in heartbeats (registry synced from the agents).
+    device_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("edge_devices.id", ondelete="CASCADE"), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(64))  # agent-local camera id
+    ai_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    last_error: Mapped[str | None] = mapped_column(String(300))
 
     group: Mapped[CameraGroup | None] = relationship(back_populates="cameras")

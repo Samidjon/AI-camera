@@ -20,7 +20,6 @@ import {
 import { useCallback, useState } from "react";
 
 import { MetricTile } from "@/components/common/metric-tile";
-import { PageHeader } from "@/components/common/page-header";
 import { Panel } from "@/components/common/panel";
 import {
   StatusIndicator,
@@ -129,11 +128,6 @@ export function DevicesView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Devices"
-        description="This edge agent: identity, hardware, central-server link, system log and backups. It keeps working without the server."
-      />
-
       {device.error && (
         <Alert variant="destructive">
           <AlertTitle>Edge agent unreachable</AlertTitle>

@@ -26,9 +26,7 @@ def _timed(name: str, fn: Callable[[], None]) -> ComponentHealth:
             latency_ms=round((time.perf_counter() - started) * 1000, 2),
             detail=redact(type(exc).__name__ + ": " + str(exc))[:300],
         )
-    return ComponentHealth(
-        state=ComponentState.OK, latency_ms=round((time.perf_counter() - started) * 1000, 2)
-    )
+    return ComponentHealth(state=ComponentState.OK, latency_ms=round((time.perf_counter() - started) * 1000, 2))
 
 
 def check_database(settings: Settings) -> ComponentHealth:
@@ -39,6 +37,23 @@ def check_database(settings: Settings) -> ComponentHealth:
         # Report the real backend so a SQLite dev database is never displayed as PostgreSQL.
         result.detail = get_engine(settings).dialect.name
     return result
+
+
+def device_counts(settings: Settings) -> dict | None:
+    """Edge devices by status — never raises (status endpoint must always answer)."""
+    try:
+        from sqlalchemy import func, select
+
+        from app.db.session import session_scope
+        from app.models import EdgeDevice
+
+        with session_scope(settings) as db:
+            rows = db.execute(select(EdgeDevice.status, func.count()).group_by(EdgeDevice.status)).all()
+        counts = {status: int(n) for status, n in rows}
+        return {"total": sum(counts.values()), "by_status": counts}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Device count failed: %s", redact(str(exc))[:200])
+        return None
 
 
 def check_redis(settings: Settings) -> ComponentHealth:

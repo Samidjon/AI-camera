@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from threading import Lock
 from typing import Annotated
 
@@ -57,9 +58,7 @@ def set_engine(engine: Engine | None) -> None:
         if _engine is not None and _engine is not engine:
             _engine.dispose()
         _engine = engine
-        _session_factory = (
-            sessionmaker(bind=engine, autoflush=False, expire_on_commit=False) if engine else None
-        )
+        _session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False) if engine else None
 
 
 def get_db(settings: Annotated[Settings, Depends(get_settings)]) -> Iterator[Session]:
@@ -84,3 +83,19 @@ def get_db(settings: Annotated[Settings, Depends(get_settings)]) -> Iterator[Ses
 def ping_database(settings: Settings | None = None) -> None:
     with get_engine(settings).connect() as conn:
         conn.execute(text("SELECT 1"))
+
+
+@contextmanager
+def session_scope(settings: Settings | None = None) -> Iterator[Session]:
+    """Transactional session for background tasks (device monitor, WebSocket auth)."""
+    get_engine(settings)
+    assert _session_factory is not None
+    session = _session_factory()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

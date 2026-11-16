@@ -1,0 +1,221 @@
+"""Event Processor: validates and stores events uploaded by edge agents.
+
+Independent of the HTTP layer — it takes a SQLAlchemy session, the authenticated device and the
+raw event dicts, so it can run inside the API (today) or in a separate worker fed by a queue
+(planned with horizontal scaling). Guarantees:
+
+* **Structure**: every event is validated on its own; one bad event never rejects the batch.
+* **Device rights**: the device is authenticated by the caller; an event UUID already stored for a
+  *different* device is rejected (a device can't overwrite or claim another device's events).
+* **Idempotency**: the event UUID (generated on the edge) is the primary key; inserts use
+  ``ON CONFLICT DO NOTHING ... RETURNING`` so concurrent / repeated uploads store each event once and
+  report the repeats as ``duplicate``.
+* **Statistics**: hourly counts per device / camera / type are incremented only for newly stored
+  events, in the same transaction (so they never double count).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.orm import Session
+
+from app.models import Camera, CameraEvent, EdgeDevice, EventStatistic
+
+logger = logging.getLogger("aci.events")
+
+KNOWN_EVENT_TYPES = frozenset(
+    {
+        # Standard Vision Engine
+        "motion_started",
+        "motion_ended",
+        "object_entered_zone",
+        "object_exited_zone",
+        "line_crossed",
+        "camera_motion_activity",
+        # AI Engine
+        "person_detected",
+        "person_left",
+        "person_crossed_line",
+    }
+)
+MAX_METADATA_BYTES = 16_384
+
+
+class EventIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: uuid.UUID
+    camera_id: str = Field(min_length=1, max_length=64)
+    event_type: str = Field(min_length=1, max_length=64)
+    source: Literal["standard", "ai", "system"] = "standard"
+    occurred_at: datetime
+    zone_id: str | None = Field(default=None, max_length=64)
+    line_id: str | None = Field(default=None, max_length=64)
+    track_id: str | None = Field(default=None, max_length=64)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("event_type")
+    @classmethod
+    def _known_type(cls, v: str) -> str:
+        if v not in KNOWN_EVENT_TYPES:
+            raise ValueError(f"unknown event_type '{v[:64]}'")
+        return v
+
+    @field_validator("occurred_at")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("occurred_at must include a timezone")
+        return v.astimezone(UTC)
+
+    @field_validator("metadata")
+    @classmethod
+    def _small(cls, v: dict) -> dict:
+        if len(json.dumps(v, default=str)) > MAX_METADATA_BYTES:
+            raise ValueError(f"metadata larger than {MAX_METADATA_BYTES} bytes")
+        return v
+
+
+@dataclass
+class BatchResult:
+    accepted: list[str] = field(default_factory=list)
+    duplicate: list[str] = field(default_factory=list)
+    rejected: list[dict] = field(default_factory=list)
+    stored: list[dict] = field(default_factory=list)  # newly stored events (for real-time fan-out)
+
+    def as_response(self) -> dict:
+        return {"accepted": self.accepted, "duplicate": self.duplicate, "rejected": self.rejected}
+
+
+def _first_error(exc: ValidationError) -> str:
+    err = exc.errors()[0]
+    loc = ".".join(str(x) for x in err.get("loc", ()))
+    return f"{loc}: {err.get('msg', 'invalid')}"[:200]
+
+
+def _insert(db: Session, table):
+    return (postgresql.insert if db.get_bind().dialect.name == "postgresql" else sqlite.insert)(table)
+
+
+class EventProcessor:
+    def __init__(self, *, max_future_skew_s: int = 300, max_age_days: int = 400) -> None:
+        self.max_future_skew = timedelta(seconds=max_future_skew_s)
+        self.max_age = timedelta(days=max_age_days)
+        self.stats = Counter()
+
+    def validate(self, raw_events: list[Any], now: datetime) -> tuple[list[EventIn], BatchResult]:
+        result = BatchResult()
+        valid: list[EventIn] = []
+        seen: set[uuid.UUID] = set()
+        for raw in raw_events:
+            raw_id = str(raw.get("id"))[:64] if isinstance(raw, dict) else None
+            if not isinstance(raw, dict):
+                result.rejected.append({"id": None, "reason": "event must be an object"})
+                continue
+            try:
+                ev = EventIn.model_validate(raw)
+            except ValidationError as exc:
+                result.rejected.append({"id": raw_id, "reason": _first_error(exc)})
+                continue
+            if ev.occurred_at > now + self.max_future_skew:
+                result.rejected.append(
+                    {"id": str(ev.id), "reason": "occurred_at is in the future (check device clock)"}
+                )
+                continue
+            if ev.occurred_at < now - self.max_age:
+                result.rejected.append({"id": str(ev.id), "reason": "occurred_at is too old"})
+                continue
+            if ev.id in seen:
+                result.duplicate.append(str(ev.id))  # repeated inside the same batch
+                continue
+            seen.add(ev.id)
+            valid.append(ev)
+        return valid, result
+
+    def process(
+        self, db: Session, device: EdgeDevice, raw_events: list[Any], now: datetime | None = None
+    ) -> BatchResult:
+        now = now or datetime.now(UTC)
+        valid, result = self.validate(raw_events, now)
+        if valid:
+            self._store(db, device, valid, now, result)
+        self.stats["batches"] += 1
+        self.stats["accepted"] += len(result.accepted)
+        self.stats["duplicate"] += len(result.duplicate)
+        self.stats["rejected"] += len(result.rejected)
+        return result
+
+    def _store(self, db: Session, device: EdgeDevice, events: list[EventIn], now: datetime, result: BatchResult):
+        refs = {e.camera_id for e in events}
+        cameras = dict(
+            db.execute(
+                select(Camera.external_id, Camera.id).where(Camera.device_id == device.id, Camera.external_id.in_(refs))
+            ).all()
+        )
+        table = CameraEvent.__table__
+        rows = [
+            {
+                "id": e.id,
+                "device_id": device.id,
+                "camera_id": cameras.get(e.camera_id),
+                "camera_ref": e.camera_id,
+                "event_type": e.event_type,
+                "source": e.source,
+                "occurred_at": e.occurred_at,
+                "received_at": now,
+                "zone_id": e.zone_id,
+                "line_id": e.line_id,
+                "track_id": e.track_id,
+                "metadata": e.metadata,
+            }
+            for e in events
+        ]
+        stmt = _insert(db, table).values(rows).on_conflict_do_nothing(index_elements=["id"]).returning(table.c.id)
+        inserted = set(db.execute(stmt).scalars())
+        repeats = [e.id for e in events if e.id not in inserted]
+        owners = {}
+        if repeats:
+            owners = dict(
+                db.execute(select(CameraEvent.id, CameraEvent.device_id).where(CameraEvent.id.in_(repeats))).all()
+            )
+        stats: Counter = Counter()
+        for e, row in zip(events, rows, strict=True):
+            if e.id in inserted:
+                result.accepted.append(str(e.id))
+                bucket = e.occurred_at.replace(minute=0, second=0, microsecond=0)
+                stats[(bucket, e.camera_id, e.event_type)] += 1
+                result.stored.append(
+                    {k: (str(v) if isinstance(v, uuid.UUID) else v) for k, v in row.items() if k != "received_at"}
+                    | {"occurred_at": e.occurred_at.isoformat()}
+                )
+            elif owners.get(e.id) == device.id:
+                result.duplicate.append(str(e.id))
+            else:
+                result.rejected.append({"id": str(e.id), "reason": "event id already used by another device"})
+        if stats:
+            st = EventStatistic.__table__
+            ins = _insert(db, st).values(
+                [
+                    {"bucket_start": b, "device_id": device.id, "camera_ref": cam, "event_type": typ, "count": n}
+                    for (b, cam, typ), n in stats.items()
+                ]
+            )
+            db.execute(
+                ins.on_conflict_do_update(
+                    index_elements=["bucket_start", "device_id", "camera_ref", "event_type"],
+                    set_={"count": st.c.count + ins.excluded.count},
+                )
+            )
+
+
+processor = EventProcessor()
