@@ -57,6 +57,10 @@ def test_two_video_files_stream_simultaneously(real_manager: CameraManager, tmp_
     assert wait_for(lambda: _rt(real_manager, ca.id).status == CameraStatus.ONLINE, 10)
     assert wait_for(lambda: _rt(real_manager, cb.id).status == CameraStatus.ONLINE, 10)
     assert wait_for(lambda: (_rt(real_manager, ca.id).fps or 0) > 12 and (_rt(real_manager, cb.id).fps or 0) > 6, 6)
+    # Judge pacing on a meaningful sample: after a scheduling stall the first few frames catch up in a burst.
+    assert wait_for(
+        lambda: _rt(real_manager, ca.id).frames_received >= 20 and _rt(real_manager, cb.id).frames_received >= 10, 10
+    )
     ra, rb = _rt(real_manager, ca.id), _rt(real_manager, cb.id)
     assert (ra.width, ra.height) == (320, 240) and (rb.width, rb.height) == (640, 360)
     # files are paced to real time, not decoded as fast as possible

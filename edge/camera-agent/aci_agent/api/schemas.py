@@ -178,3 +178,5 @@ class AgentStatusOut(BaseModel):
     events: dict = Field(default_factory=dict)
     resources: dict = Field(default_factory=dict)
     ai: dict = Field(default_factory=dict)
+    device: dict = Field(default_factory=dict)
+    sync: dict = Field(default_factory=dict)

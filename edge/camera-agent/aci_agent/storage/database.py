@@ -97,10 +97,40 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_ai_status_history_at ON ai_status_history(at)
     """,
+    # v4 — MVP 05: device identity, server link state, encrypted device credentials, system logs
+    """
+    CREATE TABLE device (
+        id          INTEGER PRIMARY KEY CHECK (id = 1),
+        device_id   TEXT NOT NULL,
+        device_name TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    );
+    CREATE TABLE server_link (
+        id                INTEGER PRIMARY KEY CHECK (id = 1),
+        server_url        TEXT,
+        remote_device_id  TEXT,
+        credentials       BLOB,
+        registered_at     TEXT,
+        revoked_at        TEXT,
+        last_heartbeat_at TEXT,
+        last_sync_at      TEXT,
+        config_version    INTEGER NOT NULL DEFAULT 0,
+        config_applied_at TEXT,
+        updated_at        TEXT NOT NULL
+    );
+    CREATE TABLE system_logs (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        at        TEXT NOT NULL,
+        level     TEXT NOT NULL,
+        component TEXT NOT NULL,
+        message   TEXT NOT NULL
+    );
+    CREATE INDEX ix_system_logs_at ON system_logs(at)
+    """,
 ]
 
 # Separate database for events: high write volume, own retention, can be quarantined and rebuilt
-# without touching camera configuration.
+# without touching camera configuration. v2 adds the synchronization queue (events waiting for upload).
 EVENT_MIGRATIONS: list[str] = [
     """
     CREATE TABLE events (
@@ -118,6 +148,15 @@ EVENT_MIGRATIONS: list[str] = [
     CREATE INDEX ix_events_camera_time ON events(camera_id, occurred_at);
     CREATE INDEX ix_events_type_time ON events(event_type, occurred_at);
     CREATE INDEX ix_events_time ON events(occurred_at)
+    """,
+    """
+    CREATE TABLE sync_queue (
+        event_id    TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+        enqueued_at TEXT NOT NULL,
+        attempts    INTEGER NOT NULL DEFAULT 0,
+        last_error  TEXT
+    );
+    CREATE INDEX ix_sync_queue_enqueued ON sync_queue(enqueued_at)
     """,
 ]
 
@@ -192,6 +231,15 @@ class Database:
         if self.path != ":memory:":
             with self._lock:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def backup_to(self, dest: Path | str) -> None:
+        """Consistent online copy (SQLite backup API) — safe while the agent keeps writing."""
+        target = sqlite3.connect(str(dest))
+        try:
+            with self._lock:
+                self._conn.backup(target)
+        finally:
+            target.close()
 
     def close(self) -> None:
         with self._lock:

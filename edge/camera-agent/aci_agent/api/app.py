@@ -13,6 +13,7 @@ from typing import Annotated
 
 import anyio
 import cv2
+import httpx
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +22,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from aci_agent import __version__
+from aci_agent.agent.device import DeviceIdentity
+from aci_agent.agent.scheduler import BackupScheduler
 from aci_agent.ai_engine.configuration import AIEnvSettings
 from aci_agent.ai_engine.engine import AIEngine
 from aci_agent.api.ai_api import build_ai_router
+from aci_agent.api.device_api import build_device_router
 from aci_agent.api.discovery_api import build_discovery_router
 from aci_agent.api.schemas import (
     AgentStatusOut,
@@ -48,8 +52,11 @@ from aci_agent.camera.manager import (
 from aci_agent.camera.sources import CaptureFactory
 from aci_agent.configuration.settings import AgentSettings
 from aci_agent.events.store import EventStore, EventStoreSettings
+from aci_agent.monitoring import system_log
+from aci_agent.monitoring.hardware import HardwareMonitor
 from aci_agent.monitoring.logging import configure_logging, redact
 from aci_agent.monitoring.resources import ResourceMonitor
+from aci_agent.networking.link import ServerLinkRepository
 from aci_agent.security.auth import (
     AuthError,
     Principal,
@@ -61,9 +68,11 @@ from aci_agent.security.crypto import SecretBox
 from aci_agent.standard_engine.overlay import draw_overlays, parse_layers
 from aci_agent.standard_engine.pipeline import VisionManager
 from aci_agent.storage.ai_repository import AIRepository
+from aci_agent.storage.backup import create_backup
 from aci_agent.storage.database import Database
 from aci_agent.storage.repository import CameraRepository, DuplicateNameError
 from aci_agent.storage.vision_repository import VisionRepository
+from aci_agent.synchronization.manager import NetworkManager
 from aci_agent.video.frame_buffer import LatestFrameBuffer
 
 logger = logging.getLogger("aci.agent.api")
@@ -88,6 +97,7 @@ def create_app(
     manager: CameraManager | None = None,
     store: EventStore | None = None,
     ai_env: AIEnvSettings | None = None,
+    server_transport: httpx.BaseTransport | None = None,
 ) -> FastAPI:
     configure_logging(settings.log_level, settings.log_json)
     db: Database | None = None
@@ -96,6 +106,8 @@ def create_app(
         box = SecretBox.from_settings(settings.secret_key, settings.secret_key_path)
         manager = CameraManager(CameraRepository(db, box), settings, factory=factory)
     mgr = manager
+    box = mgr.repo._box  # same Fernet key as camera credentials
+    agent_db: Database = mgr.repo.db
     events = store or EventStore(
         settings.events_database_path,
         EventStoreSettings(
@@ -117,25 +129,59 @@ def create_app(
     # Optional AI layer: if anything in it fails, capture + Standard Engine + storage continue.
     ai = AIEngine(mgr, events, ai_repo, vision_repo, env=ai_env or AIEnvSettings(_env_file=settings_env_file(settings)))
 
+    # Edge runtime (MVP 05): identity, hardware metrics, optional central-server link, system log, backups.
+    identity = DeviceIdentity(agent_db, settings.device_name or None)
+    hardware = HardwareMonitor(settings.data_dir)
+
+    def heartbeat_status() -> dict:
+        return {
+            "cameras": {"total": mgr.repo.count(), "by_status": mgr.status_counts()},
+            "ai": {"enabled": ai.config.enabled, "mode": ai.mode.value, "reason": ai.mode_reason},
+            "vision": vision.stats(),
+            "events": {k: v for k, v in events.stats().items() if k in ("events_total", "dropped", "storage_paused")},
+            "uptime_s": round(time.monotonic() - app.state.started, 1),
+        }
+
+    network = NetworkManager(
+        settings.server, identity, ServerLinkRepository(agent_db, box), events,
+        status_provider=heartbeat_status, metrics_provider=hardware.sample,
+        config_appliers={"ai_enabled": lambda v: ai.set_enabled(bool(v))}, transport=server_transport,
+    )  # fmt: skip
+
+    def backup_now() -> dict:
+        return create_backup(
+            {"agent": agent_db, "events": events.db}, settings.backups_dir, settings.runtime.backup_keep
+        )
+
+    backups = BackupScheduler(settings.runtime.backup_interval_h if settings.environment != "test" else 0, backup_now)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.started = time.monotonic()
+        log_handler = system_log.install(
+            agent_db, settings.runtime.system_log_level, settings.runtime.system_log_max_rows
+        )
         mgr.start()
         vision.start()
         ai.start()
+        network.start()
+        backups.start()
         logger.info("Edge agent started", extra={"cameras": mgr.repo.count(), "auth": settings.auth_configured})
         try:
             yield
         finally:
             # Safe shutdown order: stop analysis (closes open motion episodes), stop capture,
             # then flush and checkpoint the event database.
+            await anyio.to_thread.run_sync(backups.shutdown)
+            await anyio.to_thread.run_sync(network.shutdown)
             await anyio.to_thread.run_sync(ai.shutdown)
             await anyio.to_thread.run_sync(vision.shutdown)
             await anyio.to_thread.run_sync(mgr.shutdown)
             await anyio.to_thread.run_sync(events.close)
+            logger.info("Edge agent stopped")
+            await anyio.to_thread.run_sync(system_log.uninstall, log_handler)
             if db is not None:
                 db.close()
-            logger.info("Edge agent stopped")
 
     app = FastAPI(
         title="AI Camera Intelligence — Edge Agent",
@@ -149,6 +195,8 @@ def create_app(
     app.state.vision = vision
     app.state.ai = ai
     app.state.events = events
+    app.state.network = network
+    app.state.identity = identity
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -250,6 +298,8 @@ def create_app(
             events=events.stats(),
             resources=resources.sample(),
             ai={"mode": ai.mode.value, "reason": ai.mode_reason, "enabled": ai.config.enabled},
+            device={"device_id": identity.device_id, "device_name": identity.device_name},
+            sync={"state": network.state.value, "reason": network.reason, "queue": events.sync_stats()},
         )
 
     # ------------------------------------------------------------ cameras
@@ -456,4 +506,11 @@ def create_app(
     app.include_router(build_vision_router(require, mgr, vision_repo, vision, events))
     app.include_router(build_ai_router(require, ai, ai_repo))
     app.include_router(build_discovery_router(require, discovery))
+    app.include_router(
+        build_device_router(
+            require, identity=identity, hardware=hardware, network=network, db=agent_db,
+            backups_dir=settings.backups_dir, backup_now=backup_now, started_at=app.state.started,
+            storage_stats=events.stats,
+        )
+    )  # fmt: skip
     return app

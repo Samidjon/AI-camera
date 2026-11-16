@@ -32,7 +32,9 @@ locally), `type: "access"`, `iat`, `exp`.
 
 The **edge agent** has its own API (`/api/v1` on port 8100, docs at `/docs`) — see
 [edge/camera-agent/README.md](../edge/camera-agent/README.md) and
-[CAMERA_INTEGRATION.md](CAMERA_INTEGRATION.md).
+[CAMERA_INTEGRATION.md](CAMERA_INTEGRATION.md). Device runtime endpoints (`/api/v1/device*`) and the
+**device ↔ central-server contract** (registration, heartbeat, `/events/batch`, configuration) that the
+central server implements in MVP 06: [EDGE_AGENT.md](EDGE_AGENT.md).
 
 Roles (seeded): `administrator` (`*`), `operator`, `viewer`. Endpoints added in later MVPs protect
 themselves with `Depends(require_permission("cameras:control"))`.

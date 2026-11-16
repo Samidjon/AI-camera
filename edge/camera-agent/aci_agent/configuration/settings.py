@@ -46,6 +46,39 @@ class EventSettings(BaseSettings):
     maintenance_interval_s: float = Field(default=300, ge=1, le=86400)
 
 
+class ServerSettings(BaseSettings):
+    """Link to the central server (optional). Empty ``url`` = standalone device: nothing is uploaded and
+    the agent never tries to reach the network."""
+
+    model_config = SettingsConfigDict(env_prefix="ACI_AGENT_SERVER_", extra="ignore")
+
+    url: str = ""
+    # One-time enrollment token issued by the central server. Used only for the first registration;
+    # afterwards the device authenticates with its own credentials (stored encrypted).
+    enrollment_token: str = ""
+    # Plain http:// is refused unless explicitly allowed (development / isolated lab networks only).
+    allow_insecure_http: bool = False
+    # Custom CA bundle for a server with a private certificate authority.
+    ca_file: Path | None = None
+    heartbeat_interval_s: float = Field(default=30, ge=5, le=3600)
+    sync_interval_s: float = Field(default=5, ge=0.5, le=3600)
+    sync_batch_size: int = Field(default=200, ge=1, le=1000)
+    request_timeout_s: float = Field(default=10, ge=1, le=120)
+    backoff_initial_s: float = Field(default=2, ge=0.1, le=600)
+    backoff_max_s: float = Field(default=300, ge=1, le=86400)
+    sync_queue_max: int = Field(default=200_000, ge=1000, le=10_000_000)
+
+
+class RuntimeSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ACI_AGENT_RUNTIME_", extra="ignore")
+
+    system_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    system_log_max_rows: int = Field(default=5000, ge=100, le=1_000_000)
+    backup_keep: int = Field(default=7, ge=1, le=365)
+    # Automatic local backup of the databases every N hours (0 = off).
+    backup_interval_h: float = Field(default=24, ge=0, le=24 * 30)
+
+
 class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", env_prefix="ACI_AGENT_", extra="ignore"
@@ -74,6 +107,10 @@ class AgentSettings(BaseSettings):
     stream: StreamSettings = Field(default_factory=StreamSettings)
     vision: VisionRuntimeSettings = Field(default_factory=VisionRuntimeSettings)
     events: EventSettings = Field(default_factory=EventSettings)
+    server: ServerSettings = Field(default_factory=ServerSettings)
+    runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
+    # Device name shown on the central server (default: host name). Can be renamed later.
+    device_name: str = ""
 
     @property
     def events_database_path(self) -> Path:
@@ -82,6 +119,10 @@ class AgentSettings(BaseSettings):
     @property
     def database_path(self) -> Path:
         return self.data_dir / "agent.db"
+
+    @property
+    def backups_dir(self) -> Path:
+        return self.data_dir / "backups"
 
     @property
     def secret_key_path(self) -> Path:

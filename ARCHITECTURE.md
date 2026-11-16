@@ -76,6 +76,10 @@ Standalone process next to the cameras; its own SQLite DB and local API. Details
 | `events/` | Event model + local event database with async writer, retention, recovery (MVP 03) |
 | `monitoring/resources.py` | Process CPU / memory sampling, memory-limit protection (MVP 03) |
 | `ai_engine/` | Optional AI: provider interface, YOLOX on OpenCV DNN, model registry, ByteTrack, attributes, supervisor (MVP 04) |
+| `agent/` | Device identity, hardware facts, backup scheduler (MVP 05) |
+| `networking/`, `synchronization/` | Central-server client (HTTPS), encrypted server link, Network Manager: registration, heartbeat, batched idempotent upload, config sync, backoff, revocation (MVP 05) |
+| `monitoring/hardware.py`, `monitoring/system_log.py` | Hardware metrics (CPU/RAM/disk/temperature/GPU/network); system log in SQLite (MVP 05) |
+| `storage/backup.py`, `deploy/` | Online backups + restore; Linux installer, systemd unit, `aci-agentctl` (MVP 05) |
 
 ### shared/
 
@@ -110,6 +114,13 @@ boundaries (`camera-event.schema.json`).
 | D22 | **AI is a separate supervised layer** | One inference thread + watchdog; any AI failure is contained and the Standard Engine is the permanent fallback. |
 | D23 | **Models are local files pinned by SHA-256** | Spec: no automatic downloads from unverified sources. |
 | D24 | **Claude only for optional, rate-limited appearance attributes** | Per-frame detection must work offline; the cloud call is per track, non-blocking, privacy-constrained, opt-in. |
+| D25 | **Sync queue is a table in `events.db`, written in the event's transaction** (MVP 05) | Power loss can't separate an event from its upload entry; no second store to reconcile. |
+| D26 | **Device ID = random UUID created on first start** | Stable, unique per installation, not derived from hardware serials (privacy, board swaps). |
+| D27 | **Agent-defined sync contract, server implements it in MVP 06** | Edge was built first; the contract (`docs/EDGE_AGENT.md`) is tested against an in-process fake server. |
+| D28 | **Enrollment token once → per-device secret, encrypted with the agent's Fernet key** | Revocable per device; a leaked dashboard JWT secret doesn't let anyone upload as a device. |
+| D29 | **HTTPS mandatory for the server link** (explicit lab-only override) | Event data and device credentials cross networks. |
+| D30 | **Retention never deletes un-uploaded events; disk protection may (counted)** | Offline weeks must not lose data, but a full disk must not stop capture. |
+| D31 | **Installed as a hardened systemd service under a dedicated user** | Restricted permissions, auto-restart, no root at runtime. Not installed into camera firmware. |
 
 ## Error format
 

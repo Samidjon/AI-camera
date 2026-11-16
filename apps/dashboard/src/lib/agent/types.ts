@@ -1,7 +1,8 @@
 // Mirrors the edge agent's schemas (edge/camera-agent/aci_agent/api/schemas.py).
 
 export type SourceType = "rtsp" | "onvif" | "usb" | "file" | "ffmpeg";
-export type CameraStatus = "online" | "offline" | "connecting" | "reconnecting" | "error" | "disabled";
+export type CameraStatus =
+  "online" | "offline" | "connecting" | "reconnecting" | "error" | "disabled";
 export type FailureKind =
   | "unreachable"
   | "auth_failed"
@@ -134,7 +135,15 @@ export interface VisionTrack {
 }
 
 export interface VisionState {
-  status: "starting" | "waiting_for_video" | "warming_up" | "active" | "paused_memory" | "disabled" | "error" | "not_running";
+  status:
+    | "starting"
+    | "waiting_for_video"
+    | "warming_up"
+    | "active"
+    | "paused_memory"
+    | "disabled"
+    | "error"
+    | "not_running";
   motion_active?: boolean;
   motion_since?: string | null;
   objects?: number;
@@ -201,7 +210,14 @@ export interface EventsPage {
 
 // ---------------------------------------------------------------- AI Engine (MVP 04)
 
-export type AIMode = "disabled" | "loading" | "active" | "degraded" | "offline" | "error" | "recovering";
+export type AIMode =
+  | "disabled"
+  | "loading"
+  | "active"
+  | "degraded"
+  | "offline"
+  | "error"
+  | "recovering";
 export type AttributeProviderKind = "off" | "local" | "claude";
 
 export interface AIStatus {
@@ -211,7 +227,14 @@ export interface AIStatus {
   enabled: boolean;
   fallback: "standard_engine" | null;
   warnings: string[];
-  model: { id: string; name: string | null; version: string | null; status: string; provider: string | null; backend: string | null };
+  model: {
+    id: string;
+    name: string | null;
+    version: string | null;
+    status: string;
+    provider: string | null;
+    backend: string | null;
+  };
   metrics: {
     inference_fps: number | null;
     latency_avg_ms: number | null;
@@ -230,7 +253,14 @@ export interface AIStatus {
     process_rss_mb: number;
     max_rss_mb: number;
     system_available_mb: number;
-    gpu: { available: boolean; detail?: string; name?: string; utilization_percent?: number; memory_used_mb?: number; memory_total_mb?: number };
+    gpu: {
+      available: boolean;
+      detail?: string;
+      name?: string;
+      utilization_percent?: number;
+      memory_used_mb?: number;
+      memory_total_mb?: number;
+    };
   };
 }
 
@@ -272,9 +302,20 @@ export interface AIErrors {
 export interface DiscoveredDevice {
   ip: string;
   open_ports: number[];
-  onvif: { xaddr: string; port: number; name: string | null; hardware: string | null; manufacturer: string | null } | null;
+  onvif: {
+    xaddr: string;
+    port: number;
+    name: string | null;
+    hardware: string | null;
+    manufacturer: string | null;
+  } | null;
   rtsp: { port: number; server: string | null; status: number | null } | null;
-  web: { port: number; server: string | null; title: string | null; signature: string | null } | null;
+  web: {
+    port: number;
+    server: string | null;
+    title: string | null;
+    signature: string | null;
+  } | null;
   vendor: string | null;
   suggested_source_type: SourceType;
   suggested_source_uri: string;
@@ -298,4 +339,143 @@ export interface LocalNetwork {
   interface_ip: string;
   network: string;
   hosts: number;
+}
+
+// ---------------------------------------------------------------------------- Edge runtime (MVP 05)
+
+export type SyncState =
+  "unconfigured" | "registering" | "online" | "offline" | "revoked" | "error";
+
+export interface SyncQueueStats {
+  enabled: boolean;
+  pending: number;
+  oldest_pending: string | null;
+  dropped: number;
+  max: number;
+}
+
+export interface ServerLinkInfo {
+  server_url: string;
+  remote_device_id: string | null;
+  registered: boolean;
+  registered_at: string | null;
+  revoked: boolean;
+  revoked_at: string | null;
+  last_heartbeat_at: string | null;
+  last_sync_at: string | null;
+  config_version: number;
+  config_applied_at: string | null;
+}
+
+export interface SyncStatus {
+  state: SyncState;
+  reason: string | null;
+  last_error: string | null;
+  last_success_at: string | null;
+  next_attempt_in_s: number | null;
+  heartbeat_interval_s: number;
+  heartbeats: number;
+  uploaded: number;
+  duplicates: number;
+  rejected: number;
+  queue: SyncQueueStats;
+  link: ServerLinkInfo | null;
+  tls: { https: boolean; custom_ca: boolean };
+  config_applied: {
+    version: number;
+    status: string;
+    applied: string[];
+    ignored: string[];
+    errors: Record<string, string>;
+    at: string;
+  } | null;
+}
+
+export interface HardwareInfo {
+  hostname: string;
+  os: string;
+  os_release: string;
+  platform: string;
+  architecture: string;
+  cpu_model: string | null;
+  cpu_cores_logical: number | null;
+  memory_total_mb: number;
+  board_model: string | null;
+  is_jetson: boolean;
+  python: string;
+  opencv: string;
+  opencv_cuda: boolean;
+  agent_version: string;
+}
+
+export interface HardwareMetrics {
+  cpu: { percent: number; cores: number | null };
+  memory: { total_mb: number; used_mb: number; percent: number };
+  disk: {
+    path?: string;
+    total_gb?: number;
+    free_gb?: number;
+    used_percent?: number;
+    available?: boolean;
+    detail?: string;
+  };
+  temperature: {
+    available: boolean;
+    max_c?: number;
+    sensors?: Record<string, number>;
+    detail?: string;
+  };
+  gpu: {
+    available: boolean;
+    name?: string;
+    utilization_percent?: number;
+    memory_used_mb?: number;
+    memory_total_mb?: number;
+    temperature_c?: number;
+    detail?: string;
+  };
+  network: {
+    connected: boolean;
+    interfaces: {
+      interface: string;
+      ipv4: string[];
+      speed_mbps: number | null;
+    }[];
+    throughput: { rx_kbps: number; tx_kbps: number } | null;
+  };
+  uptime_s: number;
+}
+
+export interface BackupInfo {
+  id: string;
+  path: string;
+  files: Record<string, number>;
+  size_bytes?: number;
+}
+
+export interface DeviceInfo {
+  device_id: string;
+  device_name: string;
+  created_at: string | null;
+  agent_version: string;
+  uptime_seconds: number;
+  hardware: HardwareInfo;
+  metrics: HardwareMetrics;
+  sync: SyncStatus;
+  storage: {
+    events_total: number;
+    db_size_mb: number;
+    free_disk_mb: number;
+    retention_days: number;
+    storage_paused: boolean;
+  };
+  backups: { count: number; latest: BackupInfo | null };
+}
+
+export interface SystemLogEntry {
+  id: number;
+  at: string;
+  level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  component: string;
+  message: string;
 }

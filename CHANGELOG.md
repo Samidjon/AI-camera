@@ -3,6 +3,37 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.5.0] — MVP 05 Edge Runtime — 2026-11-16
+
+### Added
+- **Device identity**: random UUID on first start (stable across restarts / updates), name, version,
+  hardware and OS facts (CPU model, cores, RAM, board model, Jetson detection, OpenCV CUDA).
+- **Hardware monitoring**: CPU, RAM, disk, temperature (sensors, Jetson thermal zones, or GPU), GPU
+  (Jetson load / `nvidia-smi`), network interfaces and throughput, uptime.
+- **Synchronization queue** in `events.db`, written in the same transaction as each event; bounded,
+  counted drops; retention never deletes events still waiting for upload.
+- **Network Manager**: registration with a one-time enrollment token → per-device secret stored
+  encrypted; heartbeat; batched, idempotent event upload (accepted / duplicate / rejected); versioned
+  configuration download, apply and acknowledgement; exponential backoff with jitter and `Retry-After`;
+  states unconfigured / registering / online / offline / revoked / error; revocation deletes the
+  credential and keeps local operation. HTTPS enforced (lab-only override), custom CA, no redirects.
+- **System log** in SQLite (bounded, redacted, non-blocking) and **backups** (SQLite online backup,
+  integrity-checked, rotated, automatic every 24 h, restore with undo copy).
+- **CLI**: `run`, `configure` (wizard, env file mode 600), `status`, `backup`, `backups`, `restore`,
+  `register`, `unlink`, `version`.
+- **Linux / Jetson deployment**: `install.sh` (system user, `/opt`, `/etc` mode 600, `/var/lib` mode 700,
+  locked dependencies), hardened `aci-agent.service`, `aci-agentctl` (start / stop / restart / status /
+  logs / update with SHA-256 verification, backup and automatic rollback / uninstall [--purge]),
+  `deploy/package.sh`. Docs: `docs/EDGE_AGENT.md`, `docs/JETSON.md`.
+- Agent API `/api/v1/device*` (`devices:read` / `devices:manage`); `/system/status` reports device and sync.
+- Dashboard **Devices** page: metrics, device facts, central-server link (register / sync / unlink),
+  network, storage and backups, system log.
+- 33 new agent tests (fake central server implementing the MVP 06 contract).
+
+### Not verified
+- Linux installer / systemd unit not run on real Linux or Jetson hardware yet (syntax-checked only).
+- Real central-server endpoints arrive in MVP 06; until then a linked agent stays `offline` and queues.
+
 ## [0.4.0] — MVP 04 AI Engine — 2026-11-16
 
 ### Added

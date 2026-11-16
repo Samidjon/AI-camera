@@ -1,6 +1,6 @@
 [project]
 name = "aci-camera-agent"
-version = "0.4.0"
+version = "0.5.0"
 description = "AI Camera Intelligence — Edge Camera Agent (offline-first)"
 requires-python = ">=3.12,<3.13"
 # Deliberately no dependency on the central server, Redis, Supabase or any cloud service.

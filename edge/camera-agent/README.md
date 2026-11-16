@@ -31,7 +31,11 @@ aci_agent/
   video/           StreamWorker (thread per camera), ConnectionMonitor, bounded frame buffers
   storage/         SQLite database + migrations, repositories
   security/        Fernet secret box, JWT / stream-token verification
-  monitoring/      structured logging with credential redaction
+  monitoring/      structured logging with credential redaction, hardware metrics, system log
+  agent/           device identity, hardware facts, backup scheduler (MVP 05)
+  networking/      central-server HTTPS client, encrypted server link (MVP 05)
+  synchronization/ Network Manager: register, heartbeat, upload, config sync, backoff (MVP 05)
+deploy/            Linux / Jetson installer, systemd unit, aci-agentctl, package.sh (MVP 05)
   api/             FastAPI management API + MJPEG preview
 tests/             unit + integration (fake capture backend, real OpenCV files, optional hardware)
 ```
@@ -55,8 +59,11 @@ tests/             unit + integration (fake capture backend, real OpenCV files, 
 | GET | `/events`, `/events/summary` | `events:read` |
 | GET | `/ai/status`, `/ai/config`, `/ai/models`, `/ai/errors`, `/ai/cameras/{id}` | `cameras:read` |
 | POST / PUT | `/ai/enable`, `/ai/disable`, `/ai/config`, `/ai/models/{id}/validate` | `ai:manage` |
+| GET | `/device`, `/device/sync`, `/device/logs`, `/device/backups` | `devices:read` |
+| PATCH / POST / DELETE | `/device`, `/device/sync`, `/device/link`, `/device/backups` | `devices:manage` |
 
-Details: [docs/CAMERA_INTEGRATION.md](../../docs/CAMERA_INTEGRATION.md).
+Details: [docs/CAMERA_INTEGRATION.md](../../docs/CAMERA_INTEGRATION.md),
+runtime / sync / install: [docs/EDGE_AGENT.md](../../docs/EDGE_AGENT.md), [docs/JETSON.md](../../docs/JETSON.md).
 
 ## Rules
 

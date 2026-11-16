@@ -70,6 +70,13 @@ Or everything at once: `scripts/check.ps1` (Windows) / `scripts/check.sh`.
 
 > `TEST_DATABASE_URL` must point to a **separate** database — the test drops all tables.
 
+## 5. Edge agent on Linux / NVIDIA Jetson (production)
+
+Install the agent as a systemd service on the computer next to the cameras:
+`sudo edge/camera-agent/deploy/linux/install.sh`, then `sudo aci-agentctl configure`. Full guide,
+updates with checksum and rollback, uninstall: [JETSON.md](JETSON.md). Runtime, offline sync and
+backups: [EDGE_AGENT.md](EDGE_AGENT.md).
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |

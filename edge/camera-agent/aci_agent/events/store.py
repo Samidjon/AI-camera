@@ -38,6 +38,9 @@ class EventStoreSettings:
     max_db_mb: int = 512
     min_free_disk_mb: int = 500
     queue_size: int = 10_000
+    # Events waiting for upload to the central server. Bounded: beyond this the oldest queue entries
+    # are dropped from the queue (the events themselves stay in the local database).
+    sync_queue_max: int = 200_000
     batch_size: int = 500
     flush_interval_s: float = 0.5
     maintenance_interval_s: float = 300.0
@@ -63,6 +66,9 @@ class EventStore:
         self._pending_cond = threading.Condition()
         self.recoveries: list[str] = []
         self.storage_paused = False
+        # Synchronization queue: enabled only while the device is linked to a central server.
+        self.sync_enabled = False
+        self.sync_dropped = 0
         self.last_maintenance: datetime | None = None
         self.db = self._open()
         self._thread = threading.Thread(target=self._run, name="event-writer", daemon=True)
@@ -137,6 +143,12 @@ class EventStore:
             try:
                 with self._lock, self.db.transaction() as conn:
                     conn.executemany(sql, rows)
+                    if self.sync_enabled:
+                        # Same transaction: an event is never stored without its queue entry.
+                        conn.executemany(
+                            "INSERT OR IGNORE INTO sync_queue (event_id, enqueued_at) VALUES (?, ?)",
+                            [(r[0], r[9]) for r in rows],
+                        )
                 self.written += len(rows)
                 return
             except sqlite3.DatabaseError as exc:
@@ -202,10 +214,14 @@ class EventStore:
 
     def maintenance(self) -> dict:
         s = self.settings
-        report = {"expired": 0, "pruned_size": 0, "pruned_disk": 0}
+        report = {"expired": 0, "pruned_size": 0, "pruned_disk": 0, "queue_trimmed": 0}
         cutoff = (datetime.now(UTC) - timedelta(days=s.retention_days)).isoformat()
         with self._lock:
-            report["expired"] = self.db.execute("DELETE FROM events WHERE occurred_at < ?", (cutoff,))
+            # Retention never deletes events still waiting for upload; size / disk pruning may (counted).
+            report["expired"] = self.db.execute(
+                "DELETE FROM events WHERE occurred_at < ? AND id NOT IN (SELECT event_id FROM sync_queue)", (cutoff,)
+            )
+            report["queue_trimmed"] = self._trim_queue()
             if self.used_bytes() > s.max_db_mb * 1_048_576:
                 report["pruned_size"] = self._prune_oldest(0.10)
             free = self.free_disk_mb()
@@ -229,9 +245,71 @@ class EventStore:
         n = max(1, int(total * fraction)) if total else 0
         if not n:
             return 0
-        return self.db.execute(
-            "DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY occurred_at LIMIT ?)", (n,)
+        oldest = "SELECT id FROM events ORDER BY occurred_at LIMIT ?"
+        queued = int(self.db.query(f"SELECT COUNT(*) FROM sync_queue WHERE event_id IN ({oldest})", (n,))[0][0])
+        self.sync_dropped += queued  # disk protection wins over upload; counted, never silent
+        return self.db.execute(f"DELETE FROM events WHERE id IN ({oldest})", (n,))
+
+    def _trim_queue(self) -> int:
+        pending = int(self.db.query("SELECT COUNT(*) FROM sync_queue")[0][0])
+        excess = pending - self.settings.sync_queue_max
+        if excess <= 0:
+            return 0
+        self.sync_dropped += excess
+        logger.warning(
+            "Sync queue above %d entries — %d oldest dropped from upload", self.settings.sync_queue_max, excess
         )
+        return self.db.execute(
+            "DELETE FROM sync_queue WHERE event_id IN (SELECT event_id FROM sync_queue ORDER BY enqueued_at LIMIT ?)",
+            (excess,),
+        )
+
+    # ------------------------------------------------------------------ synchronization queue
+
+    def set_sync_enabled(self, enabled: bool, clear_queue: bool = False) -> None:
+        """Start / stop queueing new events for upload. ``clear_queue`` discards pending uploads (unlink)."""
+        self.sync_enabled = enabled
+        if clear_queue:
+            with self._lock:
+                self.db.execute("DELETE FROM sync_queue")
+
+    def fetch_unsynced(self, limit: int = 200) -> list[dict]:
+        with self._lock:
+            rows = self.db.query(
+                "SELECT e.* FROM sync_queue q JOIN events e ON e.id = q.event_id ORDER BY q.enqueued_at, e.id LIMIT ?",
+                (max(1, min(limit, 1000)),),
+            )
+        return [dict(r) | {"metadata": json.loads(r["metadata"] or "{}")} for r in rows]
+
+    def ack_synced(self, event_ids: list[str]) -> int:
+        """Remove confirmed events from the queue. Events stay in the local database (retention applies)."""
+        if not event_ids:
+            return 0
+        with self._lock:
+            return self.db.execute(
+                f"DELETE FROM sync_queue WHERE event_id IN ({','.join('?' * len(event_ids))})", tuple(event_ids)
+            )
+
+    def mark_sync_failed(self, event_ids: list[str], error: str) -> None:
+        if not event_ids:
+            return
+        with self._lock:
+            self.db.execute(
+                f"UPDATE sync_queue SET attempts = attempts + 1, last_error = ? WHERE event_id IN "
+                f"({','.join('?' * len(event_ids))})",
+                (error[:200], *event_ids),
+            )
+
+    def sync_stats(self) -> dict:
+        with self._lock:
+            row = self.db.query("SELECT COUNT(*) AS n, MIN(enqueued_at) AS oldest FROM sync_queue")[0]
+        return {
+            "enabled": self.sync_enabled,
+            "pending": row["n"],
+            "oldest_pending": row["oldest"],
+            "dropped": self.sync_dropped,
+            "max": self.settings.sync_queue_max,
+        }
 
     def integrity_check(self) -> bool:
         with self._lock:

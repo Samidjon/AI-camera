@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Control script for the AI Camera Intelligence edge agent (installed by install.sh).
+#
+#   aci-agentctl start|stop|restart|status|logs [-f]|health
+#   sudo aci-agentctl configure                 configuration wizard (writes /etc/aci-agent/agent.env)
+#   sudo aci-agentctl backup | backups | restore ID
+#   sudo aci-agentctl register --server URL [--token-file FILE]
+#   sudo aci-agentctl update PACKAGE.tar.gz [--sha256 HEX | --sha256-file FILE]
+#   sudo aci-agentctl rollback
+#   sudo aci-agentctl uninstall [--purge]
+set -euo pipefail
+
+SERVICE=aci-agent
+APP_USER=aci-agent
+PREFIX=/opt/aci-agent
+CONF=/etc/aci-agent/agent.env
+DATA_DIR=/var/lib/aci-agent
+PY="$PREFIX/.venv/bin/python"
+
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+need_root() { [[ $EUID -eq 0 ]] || die "run with sudo"; }
+
+port() {
+  local p
+  p="$(sed -n 's/^ACI_AGENT_PORT=//p' "$CONF" 2>/dev/null | tail -1)"
+  echo "${p:-8100}"
+}
+
+# Run an agent CLI command as the service user with the service environment. Variables are
+# exported (not passed on the command line) so secrets never appear in the process list.
+agent_cli() {
+  need_root
+  local vars=()
+  mapfile -t vars < <(grep -E '^ACI_AGENT_[A-Z0-9_]+=' "$CONF" || true)
+  ( cd "$DATA_DIR"
+    [[ ${#vars[@]} -gt 0 ]] && export "${vars[@]}"
+    export ACI_AGENT_DATA_DIR="$DATA_DIR"
+    exec runuser -u "$APP_USER" -- "$PY" -m aci_agent "$@" )
+}
+
+wait_healthy() {
+  for _ in $(seq 1 30); do
+    health >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
+}
+
+health() {
+  python3 - "$(port)" <<'EOF'
+import json, sys, urllib.request
+port = sys.argv[1]
+with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v1/system/status", timeout=3) as r:
+    s = json.load(r)
+print(json.dumps({k: s.get(k) for k in ("status", "version", "cameras_total", "cameras_by_status")}
+                 | {"sync": (s.get("sync") or {}).get("state"), "ai": (s.get("ai") or {}).get("mode")}))
+EOF
+}
+
+update() {
+  need_root
+  local pkg="" sha="" shafile=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --sha256) sha="$2"; shift 2 ;;
+      --sha256-file) shafile="$2"; shift 2 ;;
+      *) pkg="$1"; shift ;;
+    esac
+  done
+  [[ -f "$pkg" ]] || die "usage: aci-agentctl update PACKAGE.tar.gz --sha256 HEX"
+  [[ -n "$shafile" ]] && sha="$(awk '{print $1}' "$shafile")"
+  [[ "$sha" =~ ^[0-9a-fA-F]{64}$ ]] || die "a SHA-256 checksum is required (--sha256 or --sha256-file)"
+  local actual
+  actual="$(sha256sum "$pkg" | awk '{print $1}')"
+  [[ "${actual,,}" == "${sha,,}" ]] || die "checksum mismatch — refusing to install ($actual)"
+  echo "Checksum OK"
+
+  local work
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' RETURN
+  tar -xzf "$pkg" -C "$work" --no-same-owner
+  local src
+  src="$(dirname "$(find "$work" -maxdepth 3 -name pyproject.toml | head -1)")"
+  [[ -d "$src/aci_agent" ]] || die "package does not contain the agent sources"
+
+  echo "Backing up data and current version"
+  agent_cli backup >/dev/null || echo "warning: backup failed — continuing with the code snapshot only"
+  rm -rf "$PREFIX.prev"
+  cp -a "$PREFIX" "$PREFIX.prev"
+
+  systemctl stop "$SERVICE"
+  if bash "$src/deploy/linux/install.sh" --source "$src" --no-start && systemctl start "$SERVICE" && wait_healthy; then
+    echo "Updated: $(health)"
+  else
+    echo "Update failed — rolling back" >&2
+    rollback
+    exit 1
+  fi
+}
+
+rollback() {
+  need_root
+  [[ -d "$PREFIX.prev" ]] || die "no previous version to roll back to"
+  systemctl stop "$SERVICE" || true
+  rm -rf "$PREFIX.failed"
+  mv "$PREFIX" "$PREFIX.failed"
+  mv "$PREFIX.prev" "$PREFIX"
+  install -m 644 "$PREFIX/deploy/aci-agent.service" /etc/systemd/system/aci-agent.service 2>/dev/null || true
+  systemctl daemon-reload
+  systemctl start "$SERVICE"
+  echo "Rolled back to the previous version (failed one kept in $PREFIX.failed)"
+}
+
+uninstall() {
+  need_root
+  local purge=0
+  [[ "${1:-}" == "--purge" ]] && purge=1
+  systemctl disable --now "$SERVICE" 2>/dev/null || true
+  rm -f "/etc/systemd/system/$SERVICE.service"
+  systemctl daemon-reload
+  rm -rf "$PREFIX" "$PREFIX.prev" "$PREFIX.failed"
+  if [[ $purge -eq 1 ]]; then
+    rm -rf "$DATA_DIR" /etc/aci-agent
+    userdel "$APP_USER" 2>/dev/null || true
+    echo "Removed the agent, its data, configuration and user."
+  else
+    echo "Removed the agent. Data kept in $DATA_DIR, configuration in /etc/aci-agent (use --purge to delete)."
+  fi
+  rm -f /usr/local/bin/aci-agentctl
+}
+
+cmd="${1:-status}"
+shift || true
+case "$cmd" in
+  start|stop|restart) need_root; systemctl "$cmd" "$SERVICE" ;;
+  status) systemctl --no-pager status "$SERVICE" | head -5 || true; health 2>/dev/null || echo "(agent API not answering)" ;;
+  health) health ;;
+  logs) journalctl -u "$SERVICE" --no-pager -n 200 "$@" ;;
+  configure)
+    need_root
+    ACI_AGENT_ENV_FILE="$CONF" "$PY" -m aci_agent configure --output "$CONF"
+    chown root:root "$CONF"; chmod 600 "$CONF" ;;
+  backup|backups|restore|register|unlink|version)
+    if [[ "$cmd" == "restore" ]] && systemctl is-active --quiet "$SERVICE"; then die "stop the agent first"; fi
+    agent_cli "$cmd" "$@" ;;
+  update) update "$@" ;;
+  rollback) rollback ;;
+  uninstall) uninstall "$@" ;;
+  *) sed -n '2,12p' "$0"; exit 2 ;;
+esac

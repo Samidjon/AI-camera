@@ -26,7 +26,7 @@ vision, optional AI) → central server → web control center.
 apps/
   api-server/        Central API — Python 3.12, FastAPI, SQLAlchemy, Alembic
   dashboard/         Control center — Next.js 16, React 19, TypeScript, Tailwind 4, shadcn/ui
-edge/camera-agent/   Edge camera agent — capture, camera manager, live preview (offline-first)
+edge/camera-agent/   Edge agent — capture, vision, AI, local storage, sync, Linux/Jetson installer (offline-first)
 services/event-processor/  Event ingestion (placeholder until MVP 06)
 shared/              Contracts: OpenAPI spec, JSON schemas, generated types
 infrastructure/      Database (Supabase) and monitoring notes
@@ -88,4 +88,6 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
 - [docs/VISION_ENGINE.md](docs/VISION_ENGINE.md) — motion detection, tracking, lines, zones, events, storage
 - [docs/AI_ENGINE.md](docs/AI_ENGINE.md) — optional AI: model install, modes, failure protection, privacy
+- [docs/EDGE_AGENT.md](docs/EDGE_AGENT.md) — edge runtime: identity, offline sync, server contract, backups, security
+- [docs/JETSON.md](docs/JETSON.md) — install on Linux / NVIDIA Jetson as a systemd service, update, uninstall
 - [infrastructure/database/README.md](infrastructure/database/README.md) — schema and Supabase security

@@ -1,0 +1,53 @@
+[Unit]
+Description=AI Camera Intelligence - Edge Camera Agent
+Documentation=file:///opt/aci-agent/docs/EDGE_AGENT.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aci-agent
+Group=aci-agent
+# USB cameras (/dev/video*)
+SupplementaryGroups=video
+WorkingDirectory=/var/lib/aci-agent
+Environment=ACI_AGENT_DATA_DIR=/var/lib/aci-agent
+Environment=ACI_AGENT_ENVIRONMENT=production
+Environment=PYTHONUNBUFFERED=1
+# Configuration and secrets (root-owned, mode 600, read by systemd before dropping privileges).
+EnvironmentFile=/etc/aci-agent/agent.env
+ExecStart=/opt/aci-agent/.venv/bin/python -m aci_agent run
+Restart=always
+RestartSec=5
+# Graceful shutdown: the agent flushes the event queue and checkpoints the databases.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=8192
+UMask=0077
+
+# --- hardening -------------------------------------------------------------
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/var/lib/aci-agent
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+# AF_NETLINK: interface list for hardware monitoring / network discovery.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# Devices stay visible (USB cameras, Jetson GPU nodes); access is limited by group membership.
+PrivateDevices=false
+
+[Install]
+WantedBy=multi-user.target
