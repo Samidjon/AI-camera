@@ -64,9 +64,7 @@ def test_groups_unique_and_set_null_on_delete(tmp_path: Path):
     g = repo.create_group("Entrances", None)
     with pytest.raises(DuplicateNameError):
         repo.create_group("entrances", None)  # case-insensitive
-    cam = repo.create(
-        CameraConfig(id="", name="G", source_type=SourceType.USB, source_uri="0", group_id=g["id"]), None
-    )
+    cam = repo.create(CameraConfig(id="", name="G", source_type=SourceType.USB, source_uri="0", group_id=g["id"]), None)
     assert repo.list_groups()[0]["camera_count"] == 1
     repo.delete_group(g["id"])
     assert repo.get(cam.id).group_id is None

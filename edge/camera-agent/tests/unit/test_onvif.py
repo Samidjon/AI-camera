@@ -23,12 +23,27 @@ def _transport(require_password: str | None = "secret", seen: list | None = None
         if require_password and "UsernameToken" not in body:
             return httpx.Response(401, text="")
         if "GetCapabilities" in body:
-            return httpx.Response(200, text=_soap(f"<tds:GetCapabilitiesResponse><tds:Capabilities><tt:Media><tt:XAddr>{MEDIA}</tt:XAddr></tt:Media></tds:Capabilities></tds:GetCapabilitiesResponse>"))
+            return httpx.Response(
+                200,
+                text=_soap(
+                    f"<tds:GetCapabilitiesResponse><tds:Capabilities><tt:Media><tt:XAddr>{MEDIA}</tt:XAddr></tt:Media></tds:Capabilities></tds:GetCapabilitiesResponse>"
+                ),
+            )
         if "GetProfiles" in body:
-            return httpx.Response(200, text=_soap('<trt:GetProfilesResponse><trt:Profiles token="main"/><trt:Profiles token="sub"/></trt:GetProfilesResponse>'))
+            return httpx.Response(
+                200,
+                text=_soap(
+                    '<trt:GetProfilesResponse><trt:Profiles token="main"/><trt:Profiles token="sub"/></trt:GetProfilesResponse>'
+                ),
+            )
         if "GetStreamUri" in body:
             token = "sub" if ">sub<" in body else "main"
-            return httpx.Response(200, text=_soap(f"<trt:GetStreamUriResponse><trt:MediaUri><tt:Uri>rtsp://cam:554/{token}</tt:Uri></trt:MediaUri></trt:GetStreamUriResponse>"))
+            return httpx.Response(
+                200,
+                text=_soap(
+                    f"<trt:GetStreamUriResponse><trt:MediaUri><tt:Uri>rtsp://cam:554/{token}</tt:Uri></trt:MediaUri></trt:GetStreamUriResponse>"
+                ),
+            )
         return httpx.Response(500, text="")
 
     return httpx.MockTransport(handler)

@@ -3,10 +3,11 @@
 Modular, offline-first video-surveillance platform: IP cameras → edge agents (local computer
 vision, optional AI) → central server → web control center.
 
-> **Status: MVP 02 — Camera Integration.** Central API server, database schema, auth, dashboard
-> and the edge camera agent (RTSP / ONVIF / USB / file / FFmpeg sources, live preview, automatic
-> reconnection, encrypted credentials) are implemented. Vision, AI, edge sync and analytics are
-> **not implemented yet** (MVP 03–08). The dashboard labels every unimplemented module explicitly.
+> **Status: MVP 03 — Standard Vision Engine.** Central API server, auth, dashboard, the edge camera
+> agent (RTSP / ONVIF / USB / file / FFmpeg sources, live preview, reconnection, encrypted
+> credentials) and AI-free motion analysis (motion objects, tracking, line crossing, zones, local
+> event storage) are implemented and work without internet or server. Optional AI, edge sync and
+> analytics are **not implemented yet** (MVP 04–08).
 
 ## Principles
 
@@ -82,4 +83,5 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — setup with Supabase, troubleshooting
 - [docs/API.md](docs/API.md) — endpoints and error format
 - [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
+- [docs/VISION_ENGINE.md](docs/VISION_ENGINE.md) — motion detection, tracking, lines, zones, events, storage
 - [infrastructure/database/README.md](infrastructure/database/README.md) — schema and Supabase security

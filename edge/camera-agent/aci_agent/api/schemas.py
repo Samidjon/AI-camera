@@ -173,3 +173,6 @@ class AgentStatusOut(BaseModel):
     cameras_by_status: dict[str, int]
     active_workers: int
     leaked_workers: int
+    vision: dict = Field(default_factory=dict)
+    events: dict = Field(default_factory=dict)
+    resources: dict = Field(default_factory=dict)

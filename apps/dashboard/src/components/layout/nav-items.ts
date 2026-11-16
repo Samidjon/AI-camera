@@ -12,7 +12,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/cameras", label: "Cameras", icon: Cctv },
   { href: "/devices", label: "Devices", icon: Cpu, availableIn: "MVP 05" },
-  { href: "/events", label: "Events", icon: Activity, availableIn: "MVP 03" },
+  { href: "/events", label: "Events", icon: Activity },
   { href: "/analytics", label: "Analytics", icon: BarChart3, availableIn: "MVP 08" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -21,13 +21,17 @@ export function CameraPreview({
   camera,
   live = true,
   onRequestLive,
+  layers = [],
   className,
 }: {
   camera: Camera;
   live?: boolean;
   onRequestLive?: () => void;
+  /** Agent-drawn overlay layers: regions, boxes, tracks, zones, lines. */
+  layers?: string[];
   className?: string;
 }) {
+  const layerParam = [...layers].sort().join(",");
   const { token } = usePermissions();
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -42,7 +46,7 @@ export function CameraPreview({
       .then((t) => {
         if (!cancelled) {
           setFailed(false);
-          setSrc(agentUrl(t.stream_url));
+          setSrc(agentUrl(t.stream_url) + (layerParam ? `&layers=${layerParam}` : ""));
         }
       })
       .catch(() => {
@@ -52,7 +56,7 @@ export function CameraPreview({
       cancelled = true;
       setSrc(null); // closing the <img> request releases the agent's stream
     };
-  }, [streaming, token, camera.id, attempt]);
+  }, [streaming, token, camera.id, attempt, layerParam]);
 
   const meta = STATUS_META[camera.status];
 

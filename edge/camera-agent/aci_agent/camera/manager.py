@@ -170,6 +170,13 @@ class CameraManager:
             worker = self._workers.get(camera_id)
         return worker.buffer if worker is not None and worker.is_alive() else None
 
+    def stream_handle(self, camera_id: str) -> StreamWorker | None:
+        """The live capture worker of a camera (None if not streaming). Consumers subscribe to it and
+        re-subscribe when the handle changes (camera reconnected / restarted)."""
+        with self._lock:
+            worker = self._workers.get(camera_id)
+        return worker if worker is not None and worker.is_alive() and not worker.stopping else None
+
     def subscribe(self, camera_id: str, maxsize: int | None = None) -> FrameQueue:
         """Bounded frame feed for analysis modules (Standard Vision Engine, MVP 03)."""
         with self._lock:

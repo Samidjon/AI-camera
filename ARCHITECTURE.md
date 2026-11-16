@@ -71,6 +71,10 @@ Standalone process next to the cameras; its own SQLite DB and local API. Details
 | `storage/` | SQLite (WAL, `user_version` migrations): cameras, groups, encrypted secrets |
 | `security/` | Fernet secret box; local JWT verification; camera-scoped stream tokens |
 | `api/app.py` | Management API + MJPEG preview |
+| `standard_engine/` | Motion detectors, geometry, zones/lines rules, VisionWorker pipeline, overlays (MVP 03) |
+| `tracking/` | Temporary motion-object tracker (MVP 03) |
+| `events/` | Event model + local event database with async writer, retention, recovery (MVP 03) |
+| `monitoring/resources.py` | Process CPU / memory sampling, memory-limit protection (MVP 03) |
 
 ### shared/
 
@@ -97,6 +101,10 @@ boundaries (`camera-event.schema.json`).
 | D14 | **Agent verifies dashboard JWTs locally** (shared HS256 secret, `perms` claim) | No network call to the server, so management works while the server is offline. Per-device credentials in MVP 05–06. |
 | D15 | **Preview = MJPEG with short-lived stream tokens** | Push-based, works in a plain `<img>`, no access token in URLs. Limited to ~4 simultaneous previews per browser (HTTP/1.1); multiplexed transport in MVP 07. |
 | D16 | **Agent storage = stdlib sqlite3** | Light dependency footprint for Jetson / mini PCs; WAL for crash safety. |
+| D17 | **Vision runs in the agent, one thread per camera, fed by a 2-frame drop-oldest queue** (MVP 03) | Capture never waits for analysis; failures stay per camera. |
+| D18 | **Separate `events.db`** | High write volume, own retention; can be quarantined and rebuilt without touching camera config. |
+| D19 | **Overlays drawn by the agent into MJPEG** | Exact frame/overlay alignment without a second real-time channel; per-viewer layer selection. |
+| D20 | **Motion objects are never called people** | Without AI the engine can't classify; people counting is AI-only (MVP 04/08). |
 
 ## Error format
 

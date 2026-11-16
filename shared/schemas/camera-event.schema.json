@@ -12,7 +12,7 @@
     "event_type": {
       "type": "string",
       "maxLength": 64,
-      "examples": ["motion_started", "motion_ended", "zone_entered", "zone_exited", "line_crossed", "camera_offline"]
+      "examples": ["motion_started", "motion_ended", "object_entered_zone", "object_exited_zone", "line_crossed", "camera_motion_activity"]
     },
     "source": {
       "type": "string",
@@ -21,6 +21,7 @@
     },
     "occurred_at": { "type": "string", "format": "date-time" },
     "zone_id": { "type": ["string", "null"], "maxLength": 64 },
+    "line_id": { "type": ["string", "null"], "maxLength": 64, "description": "Crossing line (line_crossed events). Central table column added with event sync in MVP 06." },
     "track_id": {
       "type": ["string", "null"],
       "maxLength": 64,

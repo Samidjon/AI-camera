@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, PlugZap, Power, PowerOff, Trash2 } from "lucide-react";
+import { Loader2, Pencil, PlugZap, Power, PowerOff, ScanSearch, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,6 +11,10 @@ import type { Camera, CameraGroup, TestResult } from "@/lib/agent/types";
 import { ApiError } from "@/lib/api/client";
 import { usePermissions } from "@/lib/auth/permissions";
 import { formatDateTime } from "@/lib/format";
+
+import { OverlayToggles } from "@/components/vision/overlay-toggles";
+import { VisionEditorDialog } from "@/components/vision/vision-editor-dialog";
+import { VisionStatus } from "@/components/vision/vision-status";
 
 import { CameraPreview } from "./camera-preview";
 import { CameraStatusBadge, FAILURE_HINT, SOURCE_LABEL } from "./camera-status";
@@ -37,6 +41,8 @@ export function CameraDetailsSheet({
   const [busy, setBusy] = useState<"connect" | "disconnect" | "test" | null>(null);
   const [test, setTest] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [layers, setLayers] = useState<string[]>(["boxes", "tracks", "zones", "lines"]);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   if (!camera) return null;
   const group = groups.find((g) => g.id === camera.group_id);
@@ -84,7 +90,11 @@ export function CameraDetailsSheet({
           <SheetDescription>{camera.location ?? "No location set"}</SheetDescription>
         </SheetHeader>
 
-        <CameraPreview camera={camera} live={open} />
+        <CameraPreview camera={camera} live={open} layers={layers} />
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
+          <span className="text-[11px] tracking-wide text-muted-foreground uppercase">Overlays</span>
+          <OverlayToggles value={layers} onChange={setLayers} />
+        </div>
 
         <div className="flex flex-wrap gap-2 border-b p-4">
           {can("cameras:control") &&
@@ -112,6 +122,9 @@ export function CameraDetailsSheet({
           )}
           {can("cameras:manage") && (
             <>
+              <Button variant="outline" size="sm" onClick={() => setEditorOpen(true)}>
+                <ScanSearch /> Detection & zones
+              </Button>
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Pencil /> Edit
               </Button>
@@ -123,6 +136,7 @@ export function CameraDetailsSheet({
         </div>
 
         <div className="space-y-3 p-4">
+          <VisionStatus cameraId={camera.id} />
           {camera.last_error && camera.status !== "online" && (
             <Alert variant={camera.status === "error" ? "destructive" : "default"}>
               <AlertTitle>{camera.last_error}</AlertTitle>
@@ -153,6 +167,7 @@ export function CameraDetailsSheet({
           </dl>
         </div>
       </SheetContent>
+      {editorOpen && <VisionEditorDialog camera={camera} open={editorOpen} onOpenChange={setEditorOpen} />}
     </Sheet>
   );
 }

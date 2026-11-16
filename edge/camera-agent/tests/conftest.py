@@ -45,6 +45,9 @@ class FakeSource:
         self.opens = 0
         self.releases = 0
         self.lock = threading.Lock()
+        # Optional scene renderer: frame index -> BGR image (moving objects for vision tests).
+        self.scene: Callable[[int], np.ndarray] | None = None
+        self.frame_index = 0
 
     @property
     def open_devices(self) -> int:
@@ -63,6 +66,11 @@ class FakeDevice:
             time.sleep(0.01)
             return False, None
         time.sleep(1.0 / self.src.fps)
+        if self.src.scene is not None:
+            with self.src.lock:
+                self.src.frame_index += 1
+                i = self.src.frame_index
+            return True, self.src.scene(i)
         return True, np.zeros((self.src.height, self.src.width, 3), np.uint8)
 
     def nominal_fps(self):

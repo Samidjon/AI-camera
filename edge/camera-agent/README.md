@@ -4,9 +4,10 @@ Standalone camera manager that runs next to the cameras (Linux mini PC, NVIDIA J
 Windows/macOS workstation for development). **Works fully offline**: no central server, Supabase,
 Redis, AI or internet required.
 
-Status: **MVP 02 — Camera Integration.** Capture, camera management and live preview are
-implemented. Vision (MVP 03), AI (MVP 04) and the autonomous runtime with sync, systemd and
-installers (MVP 05) are not implemented yet.
+Status: **MVP 03 — Standard Vision Engine.** Capture, camera management, live preview with
+overlays, AI-free motion analysis (tracking, lines, zones) and local event storage are implemented.
+AI (MVP 04) and the autonomous runtime with sync, systemd and installers (MVP 05) are not
+implemented yet. Details: [docs/VISION_ENGINE.md](../../docs/VISION_ENGINE.md).
 
 ## Run
 
@@ -47,6 +48,10 @@ tests/             unit + integration (fake capture backend, real OpenCV files, 
 | POST | `/cameras/{id}/stream-token` | `cameras:read` |
 | GET | `/cameras/{id}/stream.mjpeg?token=`, `/snapshot.jpg?token=` | stream token |
 | GET / POST / PATCH / DELETE | `/camera-groups[/{id}]` | read / manage |
+| GET | `/cameras/{id}/vision` (config + live state) | `cameras:read` |
+| PUT | `/cameras/{id}/vision/config` | `cameras:manage` |
+| GET / POST / PUT / DELETE | `/cameras/{id}/zones[/{zone_id}]`, `/cameras/{id}/lines[/{line_id}]` | read / manage |
+| GET | `/events`, `/events/summary` | `events:read` |
 
 Details: [docs/CAMERA_INTEGRATION.md](../../docs/CAMERA_INTEGRATION.md).
 

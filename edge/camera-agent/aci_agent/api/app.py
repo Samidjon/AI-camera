@@ -3,7 +3,6 @@
 Capture keeps running regardless of this API; the API is only the operator's control surface.
 """
 
-
 import asyncio
 import logging
 import time
@@ -33,6 +32,7 @@ from aci_agent.api.schemas import (
     StreamTokenOut,
     TestResultOut,
 )
+from aci_agent.api.vision_api import build_vision_router
 from aci_agent.camera.manager import (
     CameraConflictError,
     CameraInput,
@@ -42,7 +42,9 @@ from aci_agent.camera.manager import (
 )
 from aci_agent.camera.sources import CaptureFactory
 from aci_agent.configuration.settings import AgentSettings
+from aci_agent.events.store import EventStore, EventStoreSettings
 from aci_agent.monitoring.logging import configure_logging, redact
+from aci_agent.monitoring.resources import ResourceMonitor
 from aci_agent.security.auth import (
     AuthError,
     Principal,
@@ -51,8 +53,11 @@ from aci_agent.security.auth import (
     verify_stream_token,
 )
 from aci_agent.security.crypto import SecretBox
+from aci_agent.standard_engine.overlay import draw_overlays, parse_layers
+from aci_agent.standard_engine.pipeline import VisionManager
 from aci_agent.storage.database import Database
 from aci_agent.storage.repository import CameraRepository, DuplicateNameError
+from aci_agent.storage.vision_repository import VisionRepository
 from aci_agent.video.frame_buffer import LatestFrameBuffer
 
 logger = logging.getLogger("aci.agent.api")
@@ -67,7 +72,10 @@ def _error(status_code: int, code: str, message: str, details=None) -> JSONRespo
 
 
 def create_app(
-    settings: AgentSettings, factory: CaptureFactory | None = None, manager: CameraManager | None = None
+    settings: AgentSettings,
+    factory: CaptureFactory | None = None,
+    manager: CameraManager | None = None,
+    store: EventStore | None = None,
 ) -> FastAPI:
     configure_logging(settings.log_level, settings.log_json)
     db: Database | None = None
@@ -76,16 +84,37 @@ def create_app(
         box = SecretBox.from_settings(settings.secret_key, settings.secret_key_path)
         manager = CameraManager(CameraRepository(db, box), settings, factory=factory)
     mgr = manager
+    events = store or EventStore(
+        settings.events_database_path,
+        EventStoreSettings(
+            retention_days=settings.events.retention_days,
+            max_db_mb=settings.events.max_db_mb,
+            min_free_disk_mb=settings.events.min_free_disk_mb,
+            queue_size=settings.events.queue_size,
+            maintenance_interval_s=settings.events.maintenance_interval_s,
+        ),
+    )
+    vision_repo = VisionRepository(mgr.repo.db)
+    resources = ResourceMonitor()
+    vision = VisionManager(
+        mgr, vision_repo, events, resources,
+        max_rss_mb=settings.vision.max_rss_mb, supervisor_interval_s=settings.vision.supervisor_interval_s,
+    )  # fmt: skip
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.started = time.monotonic()
         mgr.start()
+        vision.start()
         logger.info("Edge agent started", extra={"cameras": mgr.repo.count(), "auth": settings.auth_configured})
         try:
             yield
         finally:
+            # Safe shutdown order: stop analysis (closes open motion episodes), stop capture,
+            # then flush and checkpoint the event database.
+            await anyio.to_thread.run_sync(vision.shutdown)
             await anyio.to_thread.run_sync(mgr.shutdown)
+            await anyio.to_thread.run_sync(events.close)
             if db is not None:
                 db.close()
             logger.info("Edge agent stopped")
@@ -99,6 +128,8 @@ def create_app(
     )
     app.state.started = time.monotonic()
     app.state.manager = mgr
+    app.state.vision = vision
+    app.state.events = events
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -196,6 +227,9 @@ def create_app(
             cameras_by_status=counts,
             active_workers=mgr.active_workers(),
             leaked_workers=mgr.leaked_workers,
+            vision=vision.stats(),
+            events=events.stats(),
+            resources=resources.sample(),
         )
 
     # ------------------------------------------------------------ cameras
@@ -292,12 +326,19 @@ def create_app(
             snapshot_url=f"{base}/snapshot.jpg?token={token}",
         )
 
-    def _encode(buffer: LatestFrameBuffer, frame) -> bytes:
+    def _encode(buffer: LatestFrameBuffer, frame, camera_id: str = "", layers: frozenset = frozenset()) -> bytes:
         s = settings.stream
-        cached = buffer.cached_jpeg(frame.seq, s.preview_max_width)
+        variant = (s.preview_max_width, layers)
+        cached = buffer.cached_jpeg(frame.seq, variant)
         if cached is not None:
             return cached
         image = frame.image
+        if layers:
+            worker = vision.worker(camera_id)
+            image = draw_overlays(
+                image, worker.state() if worker else None, worker.zones if worker else [],
+                worker.lines if worker else [], layers,
+            )  # fmt: skip
         if image.shape[1] > s.preview_max_width:
             scale = s.preview_max_width / image.shape[1]
             image = cv2.resize(image, (s.preview_max_width, int(image.shape[0] * scale)), interpolation=cv2.INTER_AREA)
@@ -305,7 +346,7 @@ def create_app(
         if not ok:
             raise RuntimeError("JPEG encoding failed")
         data = buf.tobytes()
-        buffer.store_jpeg(frame.seq, s.preview_max_width, data)
+        buffer.store_jpeg(frame.seq, variant, data)
         return data
 
     def _require_buffer(camera_id: str) -> LatestFrameBuffer:
@@ -316,17 +357,29 @@ def create_app(
         return buffer
 
     @router.get("/cameras/{camera_id}/snapshot.jpg", tags=["preview"])
-    def snapshot(camera_id: str, token: Annotated[str, Query(min_length=10)]):
+    def snapshot(camera_id: str, token: Annotated[str, Query(min_length=10)], layers: str | None = None):
         verify_stream_token(token, camera_id, settings)
         buffer = _require_buffer(camera_id)
         frame = buffer.latest() or buffer.wait_newer(0, 2.0)
         if frame is None:
             raise CameraConflictError("No frame available yet")
-        return Response(_encode(buffer, frame), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+        return Response(
+            _encode(buffer, frame, camera_id, parse_layers(layers)),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @router.get("/cameras/{camera_id}/stream.mjpeg", tags=["preview"])
-    async def stream(camera_id: str, request: Request, token: Annotated[str, Query(min_length=10)]):
+    async def stream(
+        camera_id: str,
+        request: Request,
+        token: Annotated[str, Query(min_length=10)],
+        layers: Annotated[
+            str | None, Query(description="Overlay layers: regions,boxes,tracks,zones,lines or all")
+        ] = None,
+    ):
         verify_stream_token(token, camera_id, settings)
+        overlay_layers = parse_layers(layers)
         buffer = _require_buffer(camera_id)
         min_interval = 1.0 / settings.stream.preview_max_fps
         viewer = uuid.uuid4().hex[:8]
@@ -344,7 +397,7 @@ def create_app(
                     if wait > 0:
                         await asyncio.sleep(wait)
                     seq, last_sent = frame.seq, time.monotonic()
-                    data = await anyio.to_thread.run_sync(_encode, buffer, frame)
+                    data = await anyio.to_thread.run_sync(_encode, buffer, frame, camera_id, overlay_layers)
                     yield (
                         f"--{BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(data)}\r\n\r\n".encode()
                         + data
@@ -379,4 +432,5 @@ def create_app(
         return Response(status_code=204)
 
     app.include_router(router)
+    app.include_router(build_vision_router(require, mgr, vision_repo, vision, events))
     return app

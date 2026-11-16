@@ -102,3 +102,95 @@ export interface AgentStatus {
   active_workers: number;
   leaked_workers: number;
 }
+
+// ---------------------------------------------------------------- Standard Vision Engine (MVP 03)
+
+export type MotionAlgorithm = "frame_diff" | "background" | "mog2" | "knn";
+
+export interface VisionConfig {
+  enabled: boolean;
+  algorithm: MotionAlgorithm;
+  sensitivity: number;
+  min_object_area: number;
+  merge_distance: number;
+  blur_kernel: number;
+  morphology_iterations: number;
+  process_width: number;
+  process_fps: number;
+  restrict_to_zones: boolean;
+  motion_end_delay_s: number;
+  lighting_change_ratio: number;
+  track_max_distance: number;
+  track_max_missed: number;
+  activity_interval_s: number;
+}
+
+export interface VisionTrack {
+  track_id: string;
+  box: [number, number, number, number];
+  direction: string | null;
+  duration_s: number;
+}
+
+export interface VisionState {
+  status: "starting" | "waiting_for_video" | "warming_up" | "active" | "paused_memory" | "disabled" | "error" | "not_running";
+  motion_active?: boolean;
+  motion_since?: string | null;
+  objects?: number;
+  tracks?: VisionTrack[];
+  zone_occupancy_estimate?: Record<string, number>;
+  session_line_counts?: Record<string, { forward: number; backward: number }>;
+  motion_ratio?: number;
+  frames_analysed?: number;
+  frames_skipped?: number;
+  lighting_changes?: number;
+  stream_interruptions?: number;
+  processing_ms?: number | null;
+  analysis_fps?: number | null;
+  last_error?: string | null;
+}
+
+export interface Zone {
+  id: string;
+  camera_id: string;
+  name: string;
+  role: "monitor" | "exclude";
+  polygon: [number, number][];
+  is_enabled: boolean;
+  occupancy_estimate?: number | null;
+}
+
+export interface CrossingLine {
+  id: string;
+  camera_id: string;
+  name: string;
+  a: [number, number];
+  b: [number, number];
+  is_enabled: boolean;
+  counts_today?: { forward: number; backward: number };
+}
+
+export type AgentEventType =
+  | "motion_started"
+  | "motion_ended"
+  | "object_entered_zone"
+  | "object_exited_zone"
+  | "line_crossed"
+  | "camera_motion_activity";
+
+export interface AgentEvent {
+  id: string;
+  camera_id: string;
+  event_type: AgentEventType;
+  source: "standard" | "ai" | "system";
+  occurred_at: string;
+  zone_id: string | null;
+  line_id: string | null;
+  track_id: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface EventsPage {
+  items: AgentEvent[];
+  next_cursor: string | null;
+}

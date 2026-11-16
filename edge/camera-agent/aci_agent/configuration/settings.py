@@ -28,6 +28,24 @@ class StreamSettings(BaseSettings):
     status_persist_interval_s: float = Field(default=30.0, ge=5, le=3600)
 
 
+class VisionRuntimeSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ACI_AGENT_VISION_", extra="ignore")
+
+    # Above this resident memory the agent pauses analysis (capture continues) until it drops.
+    max_rss_mb: float = Field(default=1024, ge=128, le=65536)
+    supervisor_interval_s: float = Field(default=2.0, ge=0.2, le=60)
+
+
+class EventSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ACI_AGENT_EVENTS_", extra="ignore")
+
+    retention_days: int = Field(default=30, ge=1, le=3650)
+    max_db_mb: int = Field(default=512, ge=16, le=1_048_576)
+    min_free_disk_mb: int = Field(default=500, ge=50, le=1_048_576)
+    queue_size: int = Field(default=10_000, ge=100, le=1_000_000)
+    maintenance_interval_s: float = Field(default=300, ge=1, le=86400)
+
+
 class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", env_prefix="ACI_AGENT_", extra="ignore"
@@ -54,6 +72,12 @@ class AgentSettings(BaseSettings):
     autostart_cameras: bool = True
 
     stream: StreamSettings = Field(default_factory=StreamSettings)
+    vision: VisionRuntimeSettings = Field(default_factory=VisionRuntimeSettings)
+    events: EventSettings = Field(default_factory=EventSettings)
+
+    @property
+    def events_database_path(self) -> Path:
+        return self.data_dir / "events.db"
 
     @property
     def database_path(self) -> Path:

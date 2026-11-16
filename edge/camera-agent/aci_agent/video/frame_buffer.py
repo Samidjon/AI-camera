@@ -37,7 +37,9 @@ class LatestFrameBuffer:
     def __init__(self) -> None:
         self._cond = threading.Condition()
         self._frame: Frame | None = None
-        self._encoded: tuple[int, int, bytes] | None = None  # (seq, max_width, jpeg)
+        # JPEG encodings of the current frame, one per preview variant (size / overlay layers).
+        self._encoded_seq = -1
+        self._encoded: dict = {}
         self._closed = False
 
     def publish(self, frame: Frame) -> None:
@@ -60,28 +62,30 @@ class LatestFrameBuffer:
                 self._cond.wait(remaining)
             return self._frame if self._frame and self._frame.seq > after_seq else None
 
-    def cached_jpeg(self, seq: int, max_width: int) -> bytes | None:
+    def cached_jpeg(self, seq: int, variant) -> bytes | None:
         with self._cond:
-            if self._encoded and self._encoded[0] == seq and self._encoded[1] == max_width:
-                return self._encoded[2]
-            return None
+            return self._encoded.get(variant) if self._encoded_seq == seq else None
 
-    def store_jpeg(self, seq: int, max_width: int, data: bytes) -> None:
+    def store_jpeg(self, seq: int, variant, data: bytes) -> None:
         with self._cond:
-            if self._frame is not None and self._frame.seq == seq:
-                self._encoded = (seq, max_width, data)
+            if self._frame is None or self._frame.seq != seq:
+                return  # stale encode of an older frame
+            if self._encoded_seq != seq:
+                self._encoded_seq, self._encoded = seq, {}
+            if len(self._encoded) < 8:  # bounded: at most 8 variants per frame
+                self._encoded[variant] = data
 
     def clear(self) -> None:
         with self._cond:
             self._frame = None
-            self._encoded = None
+            self._encoded = {}
             self._cond.notify_all()
 
     def close(self) -> None:
         with self._cond:
             self._closed = True
             self._frame = None
-            self._encoded = None
+            self._encoded = {}
             self._cond.notify_all()
 
 

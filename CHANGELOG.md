@@ -3,6 +3,35 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] — MVP 03 Standard Vision Engine — 2026-11-16
+
+### Added
+- **Standard Vision Engine** in the edge agent — AI-free, fully local: motion detection with four
+  OpenCV algorithms (frame differencing, running-average background subtraction, MOG2, KNN),
+  sensitivity, minimum object area, noise reduction (blur + morphology), fragment merging,
+  lighting-change detection, empty-frame handling, exclude / monitor detection zones.
+- Motion objects (never labelled as people) with appearance/disappearance, size, heading, duration;
+  temporary camera-scoped Motion Track IDs (centroid + IoU distance-gated association).
+- Line crossing (direction, per-session and per-day counters, jitter protection) and polygon zone
+  monitoring (enter / exit with dwell time, occupancy estimate).
+- Events: motion_started, motion_ended, object_entered_zone, object_exited_zone, line_crossed,
+  camera_motion_activity — device-generated UUIDs, stored locally.
+- Local event database (`events.db`): non-blocking batch writer, retention, size and free-disk
+  limits, write pause on critical disk, integrity check with quarantine + recreate, safe shutdown.
+- Local configuration storage: per-camera vision settings, zones, lines (`agent.db` migration v2).
+- Resource management: per-camera analysis threads, 2-frame drop-oldest queues, configurable
+  analysis FPS (frame skipping), CPU/RSS monitoring, memory-limit pause, graceful shutdown.
+- Agent API: vision config/state, zones, lines, events (filters + keyset pagination), summary;
+  overlay layers in MJPEG preview / snapshots.
+- Dashboard: overlay toggles, live motion-detection status, zone & line editor on a camera
+  snapshot, detection settings; **Events** page with filters and pagination; Overview shows today's
+  motion events.
+- 59 new agent tests (141 total). `docs/VISION_ENGINE.md`.
+
+### Fixed
+- Line crossings could be counted twice when a track point landed exactly on the line.
+- Zone editor lost points on rapid clicks.
+
 ## [0.2.0] — MVP 02 Camera Integration — 2026-11-16
 
 ### Added

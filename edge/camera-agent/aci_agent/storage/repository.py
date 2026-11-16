@@ -29,6 +29,10 @@ class CameraRepository:
         self._db = db
         self._box = secrets
 
+    @property
+    def db(self) -> Database:
+        return self._db
+
     # ------------------------------------------------------------- cameras
 
     @staticmethod

@@ -11,7 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePolling } from "@/hooks/use-polling";
+import { useCallback } from "react";
+
 import { agent } from "@/lib/agent/client";
+import { usePermissions } from "@/lib/auth/permissions";
 import { api } from "@/lib/api/client";
 import { formatDateTime, formatTime, formatUptime } from "@/lib/format";
 import { useSystemStatus } from "@/lib/system/system-status-provider";
@@ -24,8 +27,8 @@ const COMPONENT_META: Record<string, { label: string; icon: React.ComponentType<
 
 const ROADMAP = [
   { mvp: "01", name: "Core Foundation", state: "done" },
-  { mvp: "02", name: "Camera Integration", state: "active" },
-  { mvp: "03", name: "Standard Vision Engine", state: "planned" },
+  { mvp: "02", name: "Camera Integration", state: "done" },
+  { mvp: "03", name: "Standard Vision Engine", state: "active" },
   { mvp: "04", name: "AI Engine (optional)", state: "planned" },
   { mvp: "05", name: "Edge Runtime", state: "planned" },
   { mvp: "06", name: "Central Server", state: "planned" },
@@ -38,6 +41,12 @@ export function OverviewView() {
   const status = useSystemStatus();
   const version = usePolling((signal) => api.version(signal), 300_000);
   const agentStatus = usePolling((signal) => agent.status(signal), 10_000);
+  const { token } = usePermissions();
+  const summaryFetcher = useCallback(
+    (signal: AbortSignal) => (token ? agent.eventsSummary(token, signal) : Promise.reject(new Error("Not signed in"))),
+    [token],
+  );
+  const eventSummary = usePolling(summaryFetcher, 15_000);
   const s = status.data;
   const stale = Boolean(status.error && s);
 
@@ -93,7 +102,18 @@ export function OverviewView() {
           className={agentStatus.error && agentStatus.data ? "opacity-60" : undefined}
         />
         <MetricTile label="Edge devices" icon={Cpu} value={null} hint="Edge Runtime arrives in MVP 05" />
-        <MetricTile label="Motion events today" icon={Activity} value={null} hint="Vision Engine arrives in MVP 03" />
+        <MetricTile
+          label="Motion events today"
+          icon={Activity}
+          value={eventSummary.data ? (eventSummary.data.counts.motion_started ?? 0) : null}
+          hint={
+            eventSummary.error
+              ? "Edge agent unreachable"
+              : eventSummary.data
+                ? `${eventSummary.data.counts.line_crossed ?? 0} line crossings · since 00:00 UTC`
+                : "Standard Vision Engine"
+          }
+        />
         <MetricTile
           label="Server uptime"
           icon={Clock}
