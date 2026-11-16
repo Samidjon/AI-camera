@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote, unquote
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,13 +12,34 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 INSECURE_DEFAULT_SECRET = "change-me-in-production-please-use-a-long-random-value"
 
 
+# Query parameters some tools add to Supabase URLs (Prisma: pgbouncer, connection_limit, ...)
+# that libpq/psycopg reject with "invalid connection option".
+_NON_LIBPQ_PARAMS = {"pgbouncer", "connection_limit", "pool_timeout", "statement_cache_size", "schema"}
+
+
 def normalize_database_url(value: str) -> str:
-    """Supabase dashboards hand out postgresql:// / postgres:// URLs; use the psycopg3 driver."""
+    """Supabase dashboards hand out postgresql:// / postgres:// URLs; use the psycopg3 driver
+    and drop ORM-specific query parameters that the PostgreSQL driver does not understand."""
     value = value.strip()
     for prefix in ("postgres://", "postgresql://"):
         if value.startswith(prefix):
-            return "postgresql+psycopg://" + value[len(prefix) :]
-    return value
+            value = "postgresql+psycopg://" + value[len(prefix) :]
+            break
+    if not value.startswith("postgresql") or "://" not in value:
+        return value
+
+    scheme, _, rest = value.partition("://")
+    # The host part starts after the LAST "@", so passwords may contain "@", "/", "?", "#"...
+    userinfo, at, hostpart = rest.rpartition("@")
+    if at:
+        user, colon, password = userinfo.partition(":")
+        if colon:
+            # Percent-encode the password exactly once (people paste raw passwords from Supabase).
+            userinfo = f"{user}:{quote(unquote(password), safe='')}"
+    hostpart, qmark, query = hostpart.partition("?")
+    kept = [p for p in query.split("&") if p and p.split("=", 1)[0].lower() not in _NON_LIBPQ_PARAMS]
+    url = f"{scheme}://{userinfo}{at}{hostpart}"
+    return f"{url}?{'&'.join(kept)}" if kept else url
 
 
 class Settings(BaseSettings):

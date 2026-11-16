@@ -79,4 +79,7 @@ Or everything at once: `scripts/check.ps1` (Windows) / `scripts/check.sh`.
 | `password authentication failed` | Reset the DB password in Supabase → Database settings |
 | Dashboard: "Central server unreachable" | API not running, wrong `NEXT_PUBLIC_API_URL`, or origin missing from `ACI_CORS_ORIGINS` |
 | `DLL load failed` (Windows) | Project path too long — move it to a short path |
+| `No Python at '...\AppData\Roaming\uv\python\...'` | The venv was created by a sandboxed/packaged app whose AppData is virtualized. In your own terminal: `uv python install 3.12 --reinstall`, delete `.venv`, `uv sync` |
+| `password authentication failed for user "postgres"` | Wrong DB password — **remove the square brackets** of the `[YOUR-PASSWORD]` template, or reset the password in Supabase → Database settings |
+| `invalid connection option "pgbouncer"` | Fixed automatically since 0.1.1 (ORM-only params such as `pgbouncer=true` are stripped). Passwords with `/ ? # @ [ ]` are percent-encoded automatically |
 | `Role 'administrator' not found` | Run `uv run alembic upgrade head` first |

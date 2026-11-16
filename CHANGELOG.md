@@ -3,6 +3,17 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.1.1] — MVP 01 fixes found on Supabase — 2026-11-16
+
+### Fixed
+- Migration `0001` failed on PostgreSQL: the role seed bound `permissions` as VARCHAR into a JSONB
+  column (SQLite accepted it). Now bound as JSON online and as a string literal in `--sql` mode.
+  Verified upgrade → downgrade → upgrade on Supabase (PostgreSQL 17).
+- Database URLs from Supabase with `?pgbouncer=true` (Prisma/ORM tab) were rejected by psycopg;
+  ORM-only query parameters are now stripped.
+- Raw passwords containing `/ ? # @ [ ]` broke URL parsing; the password part is now
+  percent-encoded once, automatically.
+
 ## [0.1.0] — MVP 01 Core Foundation — 2026-11-16
 
 ### Added

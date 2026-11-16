@@ -12,7 +12,7 @@ import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
@@ -189,14 +189,16 @@ def upgrade() -> None:
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
     op.create_index("ix_audit_logs_created_at", "audit_logs", ["created_at"])
 
-    # Seed through a text-typed view of the table so the same code works online and in
-    # offline (--sql) mode; PostgreSQL casts the JSON text to JSONB on insert.
+    # Online: bind permissions with the real JSON/JSONB type (a VARCHAR-typed bind is rejected by
+    # PostgreSQL). Offline (--sql): JSON types have no literal renderer, so emit a plain string
+    # literal, which PostgreSQL coerces to JSONB.
+    offline = context.is_offline_mode()
     roles_seed = sa.table(
         "roles",
         sa.column("id", sa.Uuid()),
         sa.column("name", sa.String()),
         sa.column("description", sa.Text()),
-        sa.column("permissions", sa.Text()),
+        sa.column("permissions", sa.Text() if offline else JSONType),
         sa.column("is_system", sa.Boolean()),
     )
     op.bulk_insert(
@@ -206,7 +208,7 @@ def upgrade() -> None:
                 "id": uuid.uuid5(uuid.NAMESPACE_URL, f"aci:role:{name}"),
                 "name": name,
                 "description": desc,
-                "permissions": json.dumps(perms),
+                "permissions": json.dumps(perms) if offline else perms,
                 "is_system": True,
             }
             for name, desc, perms in BUILTIN_ROLES

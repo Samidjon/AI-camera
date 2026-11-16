@@ -3,7 +3,7 @@
   "info": {
     "title": "AI Camera Intelligence API",
     "description": "Central API server for AI Camera Intelligence. Edge agents work without this server (offline-first).",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "paths": {
     "/api/v1/health": {
