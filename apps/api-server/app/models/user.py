@@ -6,19 +6,14 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.permissions import BUILTIN_ROLE_DEFAULTS
 from app.db.base import Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
 
 # Built-in roles, seeded by the initial migration. Permissions are enforced from MVP 07 on.
 BUILTIN_ROLES: dict[str, dict] = {
-    "administrator": {"description": "Full system access", "permissions": ["*"]},
-    "operator": {
-        "description": "Operate cameras and handle events",
-        "permissions": ["cameras:read", "cameras:control", "events:read", "events:ack", "devices:read"],
-    },
-    "viewer": {
-        "description": "Read-only access",
-        "permissions": ["cameras:read", "events:read", "devices:read"],
-    },
+    "administrator": {"description": "Full system access", "permissions": BUILTIN_ROLE_DEFAULTS["administrator"]},
+    "operator": {"description": "Operate cameras and handle events", "permissions": BUILTIN_ROLE_DEFAULTS["operator"]},
+    "viewer": {"description": "Read-only access", "permissions": BUILTIN_ROLE_DEFAULTS["viewer"]},
 }
 
 

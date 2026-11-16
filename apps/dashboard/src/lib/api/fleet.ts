@@ -31,6 +31,7 @@ export interface FleetDevice {
     dropped?: number | null;
     oldest_pending?: string | null;
   };
+  metrics: DeviceMetrics;
   desired_config_version: number;
   applied_config_version: number;
   registered_at: string | null;
@@ -53,24 +54,30 @@ export interface FleetCamera {
   last_frame_at: string | null;
 }
 
+export interface DeviceMetrics {
+  hardware?: {
+    cpu?: { percent?: number };
+    memory?: { percent?: number; used_mb?: number; total_mb?: number };
+    disk?: { used_percent?: number; free_gb?: number };
+    temperature?: { available?: boolean; max_c?: number };
+    gpu?: { available?: boolean; name?: string; utilization_percent?: number };
+    network?: {
+      connected?: boolean;
+      interfaces?: {
+        interface: string;
+        ipv4: string[];
+        speed_mbps: number | null;
+      }[];
+      throughput?: { rx_kbps: number; tx_kbps: number } | null;
+    };
+  };
+  health?: { database_ok?: boolean; storage_paused?: boolean };
+  uptime_s?: number;
+  reported_name?: string;
+}
+
 export interface FleetDeviceDetail extends FleetDevice {
   hardware: Record<string, unknown>;
-  metrics: {
-    hardware?: {
-      cpu?: { percent?: number };
-      memory?: { percent?: number; used_mb?: number; total_mb?: number };
-      disk?: { used_percent?: number; free_gb?: number };
-      temperature?: { available?: boolean; max_c?: number };
-      gpu?: {
-        available?: boolean;
-        name?: string;
-        utilization_percent?: number;
-      };
-    };
-    health?: { database_ok?: boolean; storage_paused?: boolean };
-    uptime_s?: number;
-    reported_name?: string;
-  };
   cameras: FleetCamera[];
   rotate_credentials: boolean;
 }

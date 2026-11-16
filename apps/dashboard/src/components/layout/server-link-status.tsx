@@ -1,7 +1,11 @@
 "use client";
 
 import { StatusIndicator } from "@/components/common/status-indicator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatTime } from "@/lib/format";
 import { useSystemStatus } from "@/lib/system/system-status-provider";
 
@@ -21,8 +25,18 @@ export function ServerLinkStatus() {
         ? `Last successful update ${formatTime(updatedAt)} — data shown may be stale`
         : "No data received from the central server yet";
     } else if (data) {
-      tone = data.status === "ok" ? "online" : data.status === "degraded" ? "warning" : "error";
-      label = data.status === "ok" ? "Server online" : data.status === "degraded" ? "Server degraded" : "Server error";
+      tone =
+        data.status === "ok"
+          ? "online"
+          : data.status === "degraded"
+            ? "warning"
+            : "error";
+      label =
+        data.status === "ok"
+          ? "Server online"
+          : data.status === "degraded"
+            ? "Server degraded"
+            : "Server error";
       detail = `Updated ${formatTime(updatedAt)}`;
     }
   }
@@ -35,7 +49,11 @@ export function ServerLinkStatus() {
           className="flex h-7 items-center rounded-md border bg-background/40 px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`${label}. ${detail}`}
         >
-          <StatusIndicator tone={tone} label={label} pulse={tone === "online"} />
+          <StatusIndicator
+            tone={tone}
+            label={label}
+            pulse={tone === "online"}
+          />
         </button>
       </TooltipTrigger>
       <TooltipContent>{detail}</TooltipContent>

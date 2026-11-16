@@ -6,39 +6,15 @@ import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.ratelimit import limiter
 from app.models import AuditLog, Camera, CameraEvent, EdgeDevice, EventStatistic, SynchronizationLog
 from app.services.auth import create_user
 from app.services.devices import mark_stale_devices
 
 PASSWORD = "a-strong-test-password"
-
-
-@pytest.fixture(autouse=True)
-def _fresh_limiter():
-    limiter._buckets.clear()
-    yield
-
-
-@pytest.fixture
-def admin(client: TestClient, db: Session) -> dict:
-    create_user(db, email="admin@example.com", password=PASSWORD, role_name="administrator", full_name=None)
-    db.commit()
-    token = client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": PASSWORD}).json()
-    return {"Authorization": f"Bearer {token['access_token']}"}
-
-
-@pytest.fixture
-def viewer(client: TestClient, db: Session) -> dict:
-    create_user(db, email="viewer@example.com", password=PASSWORD, role_name="viewer", full_name=None)
-    db.commit()
-    token = client.post("/api/v1/auth/login", json={"email": "viewer@example.com", "password": PASSWORD}).json()
-    return {"Authorization": f"Bearer {token['access_token']}"}
 
 
 def enroll(client: TestClient, admin: dict, **body) -> str:

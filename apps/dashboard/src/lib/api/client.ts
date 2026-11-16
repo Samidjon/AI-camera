@@ -1,6 +1,14 @@
-import type { ApiErrorBody, CurrentUser, SystemStatus, TokenResponse, VersionInfo } from "./types";
+import type {
+  ApiErrorBody,
+  CurrentUser,
+  SystemStatus,
+  TokenResponse,
+  VersionInfo,
+} from "./types";
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -36,10 +44,18 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
-export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  opts.signal?.addEventListener("abort", () => controller.abort(), { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(),
+    opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  );
+  opts.signal?.addEventListener("abort", () => controller.abort(), {
+    once: true,
+  });
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
@@ -57,7 +73,11 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   } catch (err) {
     if (opts.signal?.aborted) throw err;
     const who = opts.baseUrl ? "Service" : "Central server";
-    throw new NetworkError(controller.signal.aborted ? `${who} did not respond in time` : `${who} is unreachable`);
+    throw new NetworkError(
+      controller.signal.aborted
+        ? `${who} did not respond in time`
+        : `${who} is unreachable`,
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -70,17 +90,30 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
       /* non-JSON error body */
     }
     const e = body.error;
-    throw new ApiError(res.status, e?.code ?? "http_error", e?.message ?? res.statusText, e?.request_id ?? null, e?.details);
+    throw new ApiError(
+      res.status,
+      e?.code ?? "http_error",
+      e?.message ?? res.statusText,
+      e?.request_id ?? null,
+      e?.details,
+    );
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
 export const api = {
-  health: (signal?: AbortSignal) => apiRequest<{ status: string; timestamp: string }>("/health", { signal }),
-  systemStatus: (signal?: AbortSignal) => apiRequest<SystemStatus>("/system/status", { signal }),
-  version: (signal?: AbortSignal) => apiRequest<VersionInfo>("/system/version", { signal }),
+  health: (signal?: AbortSignal) =>
+    apiRequest<{ status: string; timestamp: string }>("/health", { signal }),
+  systemStatus: (signal?: AbortSignal) =>
+    apiRequest<SystemStatus>("/system/status", { signal }),
+  version: (signal?: AbortSignal) =>
+    apiRequest<VersionInfo>("/system/version", { signal }),
   login: (email: string, password: string) =>
-    apiRequest<TokenResponse>("/auth/login", { method: "POST", body: { email, password } }),
-  me: (token: string, signal?: AbortSignal) => apiRequest<CurrentUser>("/auth/me", { token, signal }),
+    apiRequest<TokenResponse>("/auth/login", {
+      method: "POST",
+      body: { email, password },
+    }),
+  me: (token: string, signal?: AbortSignal) =>
+    apiRequest<CurrentUser>("/auth/me", { token, signal }),
 };

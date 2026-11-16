@@ -94,9 +94,10 @@ dashboard opens `GET /cameras/{id}/stream.mjpeg?token=…` — a single long-liv
 default). The user's access token never appears in a URL. Frames are JPEG-encoded once per frame
 and shared by all viewers.
 
-**Limitation (MVP 02):** browsers allow ~6 HTTP/1.1 connections per host, so the Cameras page runs
-live previews for at most 4 cameras at a time (others show "Show live view"). Multi-camera live
-walls with a multiplexed transport are part of the monitoring screen (MVP 07).
+**Preview vs. monitoring wall:** browsers allow ~6 HTTP/1.1 connections per host, so the Cameras
+page (one MJPEG stream per preview) runs at most 4 previews at a time. The **Live** page (MVP 07)
+carries every camera of a 1 / 4 / 9 / 16 wall over **one** WebSocket (`/api/v1/live`, see
+docs/DASHBOARD.md), so this limit doesn't apply there.
 
 ## Security
 

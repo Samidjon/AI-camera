@@ -60,6 +60,25 @@ central server implements in MVP 06: [EDGE_AGENT.md](EDGE_AGENT.md).
 | GET | `/events/{id}`, `/events/statistics`, `/events/statistics/summary` | events:read | Event / hourly aggregates / totals |
 | WS | `/ws` | first message `{type:"auth", token}` | Live `device.status`, `camera.status`, `event.created`, `sync.status`, `system.notification` |
 
+### Dashboard, users, settings (MVP 07)
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| GET | `/dashboard/overview?since=` | any (sections by permission) | Cameras, devices, AI, motion events today, people observations today, recent events |
+| GET | `/cameras` | cameras:read | Camera registry across devices |
+| GET | `/observations` | observations:read | Anonymous observations (one per track per camera); `since`, `until`, `device_id`, `camera_ref`, `limit`, `offset` |
+| GET | `/events?category=&q=` | events:read | Categories `motion`, `person`, `zone`, `line`, `camera_error`, `ai_error`, `device_error`; search text |
+| GET | `/events/export.csv` | events:export | Same filters, ≤100 000 rows |
+| GET / POST | `/users` | users:manage | List / create |
+| PATCH / DELETE | `/users/{id}` | users:manage | Role, active, name, password / delete (last administrator protected) |
+| GET | `/roles`, `/roles/permissions` | users:manage | Roles with user counts / permission catalog |
+| PUT | `/roles/{name}` | users:manage | Set permissions (not administrator) |
+| GET / PATCH | `/system/settings` | any / settings:manage | Retention and privacy |
+| GET | `/system/configuration` | any | Effective server configuration (no secrets) |
+
+Edge agent (MVP 07): `WS /api/v1/live` — multiplexed live video (first message `{type:"auth", token}`,
+then `{type:"subscribe", cameras, layers, max_fps, max_width}`; binary frames). See [DASHBOARD.md](DASHBOARD.md).
+
 Device authentication: `Authorization: Bearer <device secret>` + `X-ACI-Device-ID`. 429 responses carry
 `Retry-After`. Details: [CENTRAL_SERVER.md](CENTRAL_SERVER.md).
 

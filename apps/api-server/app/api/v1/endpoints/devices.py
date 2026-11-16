@@ -64,7 +64,7 @@ def _out(db: Session, device: EdgeDevice, detail: bool = False):
         return DeviceOut(**data)
     cams = db.scalars(select(Camera).where(Camera.device_id == device.id).order_by(Camera.name))
     return DeviceDetailOut(
-        **data, hardware=device.hardware, metrics=device.metrics, cameras=list(cams),
+        **data, hardware=device.hardware, cameras=list(cams),
         rotate_credentials=device.rotate_credentials,
     )  # fmt: skip
 

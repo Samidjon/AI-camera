@@ -88,6 +88,7 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
 - [docs/VISION_ENGINE.md](docs/VISION_ENGINE.md) — motion detection, tracking, lines, zones, events, storage
 - [docs/AI_ENGINE.md](docs/AI_ENGINE.md) — optional AI: model install, modes, failure protection, privacy
+- [docs/DASHBOARD.md](docs/DASHBOARD.md) — control center pages, roles, real-time, live wall, Playwright tests
 - [docs/CENTRAL_SERVER.md](docs/CENTRAL_SERVER.md) — devices, event processor, configuration, WebSocket, security
 - [docs/EDGE_AGENT.md](docs/EDGE_AGENT.md) — edge runtime: identity, offline sync, server contract, backups, security
 - [docs/JETSON.md](docs/JETSON.md) — install on Linux / NVIDIA Jetson as a systemd service, update, uninstall

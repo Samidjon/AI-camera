@@ -4,7 +4,10 @@ import { BrainCircuit } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
 
-import { StatusIndicator, type StatusTone } from "@/components/common/status-indicator";
+import {
+  StatusIndicator,
+  type StatusTone,
+} from "@/components/common/status-indicator";
 import { usePolling } from "@/hooks/use-polling";
 import { agent } from "@/lib/agent/client";
 import type { AIMode } from "@/lib/agent/types";
@@ -34,7 +37,10 @@ const LABEL: Record<AIMode, string> = {
 export function AiStatusChip() {
   const { token } = usePermissions();
   const fetcher = useCallback(
-    (signal: AbortSignal) => (token ? agent.aiStatus(token, signal) : Promise.reject(new Error("Not signed in"))),
+    (signal: AbortSignal) =>
+      token
+        ? agent.aiStatus(token, signal)
+        : Promise.reject(new Error("Not signed in")),
     [token],
   );
   const { data, error } = usePolling(fetcher, 10_000);

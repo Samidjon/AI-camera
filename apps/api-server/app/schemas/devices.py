@@ -120,6 +120,7 @@ class DeviceOut(BaseModel):
     ai_status: dict[str, Any]
     camera_status: dict[str, Any]
     sync_status: dict[str, Any]
+    metrics: dict[str, Any] = Field(default_factory=dict)
     desired_config_version: int
     applied_config_version: int
     registered_at: UTCDateTime | None
@@ -128,7 +129,6 @@ class DeviceOut(BaseModel):
 
 class DeviceDetailOut(DeviceOut):
     hardware: dict[str, Any]
-    metrics: dict[str, Any]
     cameras: list[CameraOut] = Field(default_factory=list)
     rotate_credentials: bool = False
 
@@ -232,6 +232,8 @@ class EventOut(BaseModel):
     line_id: str | None
     track_id: str | None
     metadata: dict[str, Any]
+    camera_name: str | None = None
+    device_name: str | None = None
 
 
 class EventsPageOut(BaseModel):

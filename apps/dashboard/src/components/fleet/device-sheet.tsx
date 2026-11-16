@@ -158,6 +158,15 @@ export function DeviceSheet({
                   ? `${hw.gpu.name ?? "GPU"} · ${hw.gpu.utilization_percent ?? "?"}%`
                   : "none"}
               </Row>
+              <Row label="Network">
+                {hw.network
+                  ? `${hw.network.connected ? "connected" : "down"} · ${(
+                      hw.network.interfaces ?? []
+                    )
+                      .map((n) => `${n.interface} ${n.ipv4.join(", ")}`)
+                      .join("; ")}`
+                  : null}
+              </Row>
               <Row label="AI">
                 {device.ai_status.enabled
                   ? `on · ${device.ai_status.mode}`

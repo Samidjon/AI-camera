@@ -38,11 +38,19 @@ export interface CurrentUser {
   email: string;
   full_name: string | null;
   is_active: boolean;
-  role: { name: "administrator" | "operator" | "viewer" | string; permissions: string[] };
+  role: {
+    name: "administrator" | "operator" | "viewer" | string;
+    permissions: string[];
+  };
   last_login_at: string | null;
   created_at: string;
 }
 
 export interface ApiErrorBody {
-  error: { code: string; message: string; details: unknown; request_id: string | null };
+  error: {
+    code: string;
+    message: string;
+    details: unknown;
+    request_id: string | null;
+  };
 }

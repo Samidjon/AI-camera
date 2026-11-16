@@ -103,6 +103,8 @@ export interface AgentStatus {
   cameras_by_status: Record<CameraStatus, number>;
   active_workers: number;
   leaked_workers: number;
+  device?: { device_id: string; device_name: string };
+  sync?: { state: string; reason: string | null; queue: { pending: number } };
 }
 
 // ---------------------------------------------------------------- Standard Vision Engine (MVP 03)
@@ -189,7 +191,11 @@ export type AgentEventType =
   | "camera_motion_activity"
   | "person_detected"
   | "person_left"
-  | "person_crossed_line";
+  | "person_crossed_line"
+  | "camera_error"
+  | "camera_recovered"
+  | "ai_error"
+  | "ai_recovered";
 
 export interface AgentEvent {
   id: string;

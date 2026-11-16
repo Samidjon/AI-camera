@@ -17,6 +17,8 @@ step "edge agent: pytest"   "$ROOT/edge/camera-agent" uv run pytest -q
 step "dashboard: lint"      "$ROOT/apps/dashboard"  npm run lint
 step "dashboard: typecheck" "$ROOT/apps/dashboard"  npm run typecheck
 step "dashboard: build"     "$ROOT/apps/dashboard"  npm run build
+# Browser end-to-end tests against the real stack (several minutes): ACI_E2E=1 to include them.
+if [ "${ACI_E2E:-0}" = "1" ]; then step "dashboard: e2e (Playwright)" "$ROOT/apps/dashboard" npx playwright test; fi
 
 if [ ${#failed[@]} -gt 0 ]; then
   printf '\nFAILED: %s\n' "${failed[*]}"; exit 1

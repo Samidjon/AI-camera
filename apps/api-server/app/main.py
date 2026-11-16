@@ -24,6 +24,7 @@ from app.db.session import session_scope, set_engine
 from app.processing.event_processor import EventProcessor
 from app.realtime.hub import hub
 from app.services.devices import mark_stale_devices, prune_heartbeats
+from app.services.system_settings import apply_retention
 
 logger = logging.getLogger("aci.http")
 monitor_logger = logging.getLogger("aci.devices.monitor")
@@ -34,6 +35,7 @@ def _monitor_once(settings: Settings, prune: bool) -> None:
         mark_stale_devices(db, settings)
         if prune:
             prune_heartbeats(db, settings)
+            apply_retention(db)
 
 
 async def device_monitor(settings: Settings) -> None:
@@ -98,7 +100,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        # Content-Disposition: the browser must see the CSV export's file name.
+        expose_headers=["X-Request-ID", "Content-Disposition"],
     )
 
     @app.middleware("http")

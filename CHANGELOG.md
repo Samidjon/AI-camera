@@ -3,6 +3,43 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.7.0] — MVP 07 Web Dashboard — 2026-11-16
+
+### Added
+- **Overview** with server-computed counters: cameras total / online / offline, edge devices total /
+  active, motion events today and people observations today (separate), AI active devices, devices
+  without AI, recent events, system health; live refresh over WebSocket.
+- **Live monitoring** page: 1 / 4 / 9 / 16 grid, camera selection, single view, fullscreen, motion /
+  detection / tracking / zone overlays, displayed and camera FPS, stream status. New agent endpoint
+  `WS /api/v1/live` multiplexes all cameras of a wall over one socket (newest frame only, per-viewer
+  size and rate).
+- **Events**: fleet-wide view on the central server with categories (motion, person, zone, line,
+  camera / AI / device errors), date range, camera filter, search, pagination, server-side CSV export;
+  local agent tab kept. Camera / AI health transitions become events on the agent, device offline /
+  error / back online on the server.
+- **Anonymous observations** page and API (one temporary track on one camera, duration, direction,
+  clothing attributes with confidence, detection source; never merged across cameras).
+- **Settings**: users (create, role, enable / disable, password reset, delete; last-administrator
+  protection), roles & permissions matrix, data retention and privacy (central event / observation
+  retention applied hourly, drop or hide clothing attributes), fleet-wide camera / device / AI / event
+  settings via versioned configuration, read-only system configuration.
+- Permission catalog with `events:export`, `observations:read`, `users:manage`, `settings:manage`
+  (migration 0003: `system_settings`, operator gets export + observations; viewers don't see
+  observations by default). Navigation hides modules the role can't use.
+- Device list shows CPU, RAM, GPU, temperature, disk, network; agents send an early heartbeat when a
+  camera or AI status changes.
+- Light theme matching the dark palette, theme switch (dark / light / system) without flash.
+- One shared WebSocket per tab, top-bar Live / Reconnecting indicator, "data may be stale" banner;
+  fleet statuses become "Unknown — last known" while the server is unreachable.
+- **Playwright** end-to-end tests against the real stack (server, agent with generated video,
+  production build): login, navigation, cameras, devices, live monitoring, AI, events and filters,
+  permissions, WebSocket reconnection / server outage. Docs: `docs/DASHBOARD.md`.
+
+### Fixed
+- Local events page: filtering "People (AI)" failed (agent rejected AI event types) — since MVP 04.
+- Live stream hook: a late close of a previous socket detached the current one (no frames in dev).
+- Retention delete / heartbeat pruning could fail on SQLite with objects in the session.
+
 ## [0.6.0] — MVP 06 Central Server — 2026-11-16
 
 ### Added

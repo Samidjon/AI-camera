@@ -23,6 +23,7 @@ from app.core.errors import AuthenticationError, NotFoundError, PermissionDenied
 from app.models import (
     AuditLog,
     Camera,
+    CameraEvent,
     DeviceConfiguration,
     DeviceCredential,
     DeviceHeartbeat,
@@ -92,6 +93,7 @@ def device_summary(d: EdgeDevice) -> dict:
         "ai_status": d.ai_status,
         "camera_status": d.camera_status,
         "sync_status": d.sync_status,
+        "metrics": {"hardware": (d.metrics or {}).get("hardware") or {}},
         "applied_config_version": d.applied_config_version,
         "desired_config_version": d.desired_config_version,
     }
@@ -347,10 +349,40 @@ def derive_status(
     return DeviceStatus.ONLINE.value, None
 
 
+DEVICE_EVENT = {"offline": "device_offline", "error": "device_error"}
+
+
+def _device_event(db: Session, device: EdgeDevice, previous: str, status: str, reason: str | None) -> None:
+    """Record device health transitions as system events (Events page → Device errors)."""
+    if status in DEVICE_EVENT:
+        event_type = DEVICE_EVENT[status]
+    elif previous in DEVICE_EVENT and status not in ("revoked", "pending"):
+        event_type = "device_online"
+    else:
+        return
+    now = utcnow()
+    db.add(
+        CameraEvent(id=uuid.uuid4(), device_id=device.id, camera_id=None, camera_ref=None, event_type=event_type,
+                    source="system", occurred_at=now, received_at=now,
+                    event_metadata={"device_name": device.name, "previous": previous, "reason": reason})
+    )  # fmt: skip
+    summary = {
+        "event_type": event_type,
+        "source": "system",
+        "occurred_at": now.isoformat(),
+        "device_id": str(device.id),
+    }
+    hub.publish(
+        "event.created", {"device_id": str(device.id), "device_name": device.name, "count": 1, "events": [summary]}
+    )
+
+
 def refresh_status(db: Session, settings: Settings, device: EdgeDevice, *, notify: bool = True) -> bool:
     previous = device.status
     status, reason = derive_status(db, settings, device)
     changed = set_status(device, status, reason)
+    if changed:
+        _device_event(db, device, previous, status, reason)
     hub.publish("device.status", device_summary(device))
     if changed and notify:
         level = {"offline": "warning", "error": "error", "degraded": "warning", "revoked": "warning"}.get(
@@ -481,7 +513,8 @@ def mark_stale_devices(db: Session, settings: Settings) -> int:
 
 def prune_heartbeats(db: Session, settings: Settings) -> int:
     cutoff = utcnow() - timedelta(days=settings.heartbeat_retention_days)
-    return db.execute(delete(DeviceHeartbeat).where(DeviceHeartbeat.received_at < cutoff)).rowcount or 0
+    stmt = delete(DeviceHeartbeat).where(DeviceHeartbeat.received_at < cutoff)
+    return db.execute(stmt.execution_options(synchronize_session=False)).rowcount or 0
 
 
 def require_same_device(device: EdgeDevice, device_id: uuid.UUID) -> None:

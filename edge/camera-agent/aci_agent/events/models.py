@@ -13,6 +13,15 @@ class EventType(StrEnum):
     OBJECT_EXITED_ZONE = "object_exited_zone"
     LINE_CROSSED = "line_crossed"
     CAMERA_MOTION_ACTIVITY = "camera_motion_activity"
+    # AI Engine (MVP 04)
+    PERSON_DETECTED = "person_detected"
+    PERSON_LEFT = "person_left"
+    PERSON_CROSSED_LINE = "person_crossed_line"
+    # Health (MVP 07, source "system")
+    CAMERA_ERROR = "camera_error"
+    CAMERA_RECOVERED = "camera_recovered"
+    AI_ERROR = "ai_error"
+    AI_RECOVERED = "ai_recovered"
 
 
 @dataclass(slots=True)

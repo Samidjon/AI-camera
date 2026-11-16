@@ -132,6 +132,13 @@ boundaries (`camera-event.schema.json`).
 | D36 | **Event Processor independent of HTTP, idempotent by UUID at the database** | Correct under retries and concurrency; can move to a worker behind a queue later. |
 | D37 | **WebSocket auth by first message, in-process hub** | No tokens in URLs/logs; Redis pub/sub when the API scales to several workers (MVP 09). |
 | D38 | **Cameras table = registry reported by devices** (`device_id` + agent camera id) | Central view of every camera without copying stream URLs or credentials off the edge. |
+| D39 | **Dashboard holds no business logic** (MVP 07) | Counters, observations, search, CSV, statistics are computed by the server; the UI displays and submits. |
+| D40 | **Live wall = one multiplexed WebSocket per viewer to the agent, newest frame only** | Removes the ~6-connections-per-host limit of MJPEG; backpressure by skipping frames, never queuing. |
+| D41 | **Video stays agent ↔ browser on the local network; fleet data via the central server** | No video through the cloud/server; live view keeps working when the server is down. |
+| D42 | **Health transitions are events** (`camera_error`, `ai_error`, `device_offline` …, source `system`) | Camera / AI / device errors appear on the Events page with the same filters, history and retention. |
+| D43 | **Observation = one temporary track on one camera; viewers can't see them by default** | Privacy by design: no cross-camera linking, no identity, permission-gated, separate retention, attributes can be dropped on arrival. |
+| D44 | **One WebSocket per tab for fleet updates; offline shows "Unknown — last known"** | Never a false Online; automatic reconnect and refresh. |
+| D45 | **Playwright against the real stack, isolated ports, installed Edge/Chrome** | Tests the true integration (server, agent, real video) without touching the developer's instances or downloading browsers. |
 
 ## Error format
 

@@ -131,6 +131,21 @@ backoff (`Retry-After` honoured), other 4xx = request rejected.
 **Status:** implemented on both sides and verified end-to-end (`tests/e2e/test_central_server.py`
 starts the real server and syncs real agents over HTTP) and live on the development machine.
 
+## Health events and live wall (MVP 07)
+
+* `agent/health_events.py` records `camera_error` / `camera_recovered` (a camera that was online starts
+  failing / streams again, with the failure kind) and `ai_error` / `ai_recovered` (enabled AI engine
+  degraded / back to active) as local events (source `system`). They are queued and synchronized like
+  all events; the server adds `device_offline` / `device_error` / `device_online`.
+* A change of any camera status or of the AI mode triggers a heartbeat within ~5 s, so the dashboard
+  doesn't wait for the 30 s cycle.
+* `WS /api/v1/live` (`api/live_api.py`): one WebSocket carries every camera of a monitoring wall
+  (≤16). Auth by first message (`cameras:read`), then `subscribe` with cameras, overlay layers,
+  `max_fps` (1–15), `max_width` (160–1920). Binary frames: `uint32` header length + JSON header
+  (`camera_id`, `seq`, `ts`, `width`, `height`) + JPEG; a JSON `status` message per second with
+  each camera's status and measured FPS. Only the newest frame per camera is sent; encodes are cached
+  per frame / size / overlay variant and shared between viewers.
+
 ## Command line
 
 ```bash

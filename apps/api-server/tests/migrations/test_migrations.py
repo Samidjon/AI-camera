@@ -40,6 +40,7 @@ EXPECTED_TABLES = {
     "synchronization_logs",
     "device_configurations",
     "event_statistics",
+    "system_settings",
 }
 
 

@@ -70,6 +70,18 @@ Or everything at once: `scripts/check.ps1` (Windows) / `scripts/check.sh`.
 
 > `TEST_DATABASE_URL` must point to a **separate** database — the test drops all tables.
 
+## 4b. Browser end-to-end tests (Playwright)
+
+```bash
+cd apps/dashboard
+npm run test:e2e                      # Microsoft Edge (installed on Windows)
+E2E_BROWSER_CHANNEL=chrome npm run test:e2e
+```
+
+Starts its own central server (:18000, fresh SQLite), edge agent (:18100, generated test video) and a
+production build of the dashboard (:13000); nothing of your running instances is touched. Needs `uv`
+and the Python dependencies of both services. `ACI_E2E=1 scripts/check.ps1` includes it in the checks.
+
 ## 5. Edge agent on Linux / NVIDIA Jetson (production)
 
 Install the agent as a systemd service on the computer next to the cameras:

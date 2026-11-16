@@ -23,6 +23,8 @@ Step "edge agent: pytest"       $edge { uv run pytest -q }
 Step "dashboard: lint"          $web { npm run lint }
 Step "dashboard: typecheck"     $web { npm run typecheck }
 Step "dashboard: build"         $web { npm run build }
+# Browser end-to-end tests against the real stack (several minutes): set ACI_E2E=1 to include them.
+if ($env:ACI_E2E -eq "1") { Step "dashboard: e2e (Playwright)" $web { npx playwright test } }
 
 if ($failed.Count -gt 0) {
     Write-Host "`nFAILED: $($failed -join ', ')" -ForegroundColor Red

@@ -24,7 +24,9 @@ export function UtcClock() {
       dateTime={now.toISOString()}
       className="tabular hidden items-baseline gap-1.5 font-mono text-xs text-muted-foreground sm:flex"
     >
-      <span className="text-foreground">{now.toLocaleTimeString(undefined, { hour12: false })}</span>
+      <span className="text-foreground">
+        {now.toLocaleTimeString(undefined, { hour12: false })}
+      </span>
       <span className="text-[10px]">{offset}</span>
     </time>
   );

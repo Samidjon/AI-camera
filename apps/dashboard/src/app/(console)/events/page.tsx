@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { EventsView } from "./events-view";
+import { EventsTabs } from "./events-tabs";
 
 export const metadata: Metadata = { title: "Events" };
 
 export default function EventsPage() {
-  return <EventsView />;
+  return <EventsTabs />;
 }

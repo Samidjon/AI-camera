@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Playwright: separate build output and reports (MVP 07)
+    ".next-e2e/**",
+    "playwright-report/**",
+    "test-results/**",
+    "e2e/.e2e-data/**",
   ]),
 ]);
 

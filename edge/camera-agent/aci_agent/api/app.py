@@ -23,12 +23,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from aci_agent import __version__
 from aci_agent.agent.device import DeviceIdentity
+from aci_agent.agent.health_events import HealthEventMonitor
 from aci_agent.agent.scheduler import BackupScheduler
 from aci_agent.ai_engine.configuration import AIEnvSettings
 from aci_agent.ai_engine.engine import AIEngine
 from aci_agent.api.ai_api import build_ai_router
 from aci_agent.api.device_api import build_device_router
 from aci_agent.api.discovery_api import build_discovery_router
+from aci_agent.api.live_api import build_live_router
 from aci_agent.api.schemas import (
     AgentStatusOut,
     CameraCreate,
@@ -161,10 +163,15 @@ def create_app(
             "uptime_s": round(time.monotonic() - app.state.started, 1),
         }
 
+    health_events = HealthEventMonitor(
+        mgr.list_cameras, lambda: (ai.config.enabled, ai.mode.value, ai.mode_reason), events.append
+    )
+
     network = NetworkManager(
         settings.server, identity, ServerLinkRepository(agent_db, box), events,
         status_provider=heartbeat_status, metrics_provider=hardware.sample,
         config_appliers=build_config_appliers(mgr, vision, vision_repo, ai, events), transport=server_transport,
+        fingerprint_provider=health_events.fingerprint,
     )  # fmt: skip
 
     def backup_now() -> dict:
@@ -185,12 +192,14 @@ def create_app(
         ai.start()
         network.start()
         backups.start()
+        health_events.start()
         logger.info("Edge agent started", extra={"cameras": mgr.repo.count(), "auth": settings.auth_configured})
         try:
             yield
         finally:
             # Safe shutdown order: stop analysis (closes open motion episodes), stop capture,
             # then flush and checkpoint the event database.
+            await anyio.to_thread.run_sync(health_events.shutdown)
             await anyio.to_thread.run_sync(backups.shutdown)
             await anyio.to_thread.run_sync(network.shutdown)
             await anyio.to_thread.run_sync(ai.shutdown)
@@ -415,9 +424,12 @@ def create_app(
             snapshot_url=f"{base}/snapshot.jpg?token={token}",
         )
 
-    def _encode(buffer: LatestFrameBuffer, frame, camera_id: str = "", layers: frozenset = frozenset()) -> bytes:
+    def _encode(
+        buffer: LatestFrameBuffer, frame, camera_id: str = "", layers: frozenset = frozenset(), max_width: int = 0
+    ) -> bytes:
         s = settings.stream
-        variant = (s.preview_max_width, layers)
+        width = min(max_width or s.preview_max_width, 1920)
+        variant = (width, layers)
         cached = buffer.cached_jpeg(frame.seq, variant)
         if cached is not None:
             return cached
@@ -429,9 +441,9 @@ def create_app(
                 image, worker.state() if worker else None, worker.zones if worker else [],
                 worker.lines if worker else [], layers, people=people,
             )  # fmt: skip
-        if image.shape[1] > s.preview_max_width:
-            scale = s.preview_max_width / image.shape[1]
-            image = cv2.resize(image, (s.preview_max_width, int(image.shape[0] * scale)), interpolation=cv2.INTER_AREA)
+        if image.shape[1] > width:
+            scale = width / image.shape[1]
+            image = cv2.resize(image, (width, int(image.shape[0] * scale)), interpolation=cv2.INTER_AREA)
         ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, s.preview_jpeg_quality])
         if not ok:
             raise RuntimeError("JPEG encoding failed")
@@ -525,6 +537,7 @@ def create_app(
     app.include_router(build_vision_router(require, mgr, vision_repo, vision, events))
     app.include_router(build_ai_router(require, ai, ai_repo))
     app.include_router(build_discovery_router(require, discovery))
+    app.include_router(build_live_router(settings, mgr, _encode))
     app.include_router(
         build_device_router(
             require, identity=identity, hardware=hardware, network=network, db=agent_db,

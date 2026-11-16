@@ -8,8 +8,12 @@ export function Brand({ compact = false }: { compact?: boolean }) {
       </div>
       {!compact && (
         <div className="leading-tight">
-          <div className="text-[13px] font-semibold tracking-tight">Camera Intelligence</div>
-          <div className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">Control Center</div>
+          <div className="text-[13px] font-semibold tracking-tight">
+            Camera Intelligence
+          </div>
+          <div className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+            Control Center
+          </div>
         </div>
       )}
     </div>

@@ -20,10 +20,8 @@ import { usePolling } from "@/hooks/use-polling";
 import { fleet, type FleetDevice } from "@/lib/api/fleet";
 import { usePermissions } from "@/lib/auth/permissions";
 import { formatTime } from "@/lib/format";
-import {
-  useServerEvents,
-  type ServerMessage,
-} from "@/lib/realtime/use-server-events";
+import { useLiveMessages } from "@/lib/realtime/use-live-messages";
+import type { ServerMessage } from "@/lib/realtime/use-server-events";
 
 import { DeviceSheet } from "./device-sheet";
 import { EnrollDialog } from "./enroll-dialog";
@@ -34,6 +32,9 @@ interface Notice {
   level: string;
   message: string;
 }
+
+const pct = (v: number | undefined) =>
+  typeof v === "number" ? `${Math.round(v)}%` : "—";
 
 /** All edge devices registered with the central server, updated live over WebSocket. */
 export function FleetView() {
@@ -62,6 +63,8 @@ export function FleetView() {
     return () => clearInterval(t);
   }, []);
 
+  const refresh = list.refresh;
+  const known = list.data;
   const onMessage = useCallback(
     (m: ServerMessage) => {
       const id =
@@ -81,7 +84,7 @@ export function FleetView() {
         }
         liveRef.current = { ...liveRef.current, [id]: data };
         setLive(liveRef.current);
-        if (!list.data?.some((d) => d.id === id)) list.refresh();
+        if (!known?.some((d) => d.id === id)) refresh();
       } else if (m.type === "event.created") {
         setEventsLive((n) => n + (Number(m.data.count) || 0));
       } else if (
@@ -91,22 +94,23 @@ export function FleetView() {
       ) {
         setRevisions((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 }));
       } else if (m.type === "system.notification") {
-        setNotices((prev) =>
-          [
-            {
-              at: m.at ?? new Date().toISOString(),
-              level: String(m.data.level ?? "info"),
-              message: String(m.data.message ?? ""),
-            },
-            ...prev,
-          ].slice(0, 6),
-        );
+        const notice = {
+          at: m.at ?? new Date().toISOString(),
+          level: String(m.data.level ?? "info"),
+          message: String(m.data.message ?? ""),
+        };
+        setNotices((prev) => [notice, ...prev].slice(0, 6));
       }
     },
-    [list],
+    [known, refresh],
   );
-  const liveState = useServerEvents(token, onMessage);
+  useLiveMessages(
+    ["device.status", "event.created", "sync.status", "system.notification"],
+    onMessage,
+  );
 
+  // Central server unreachable but we have an older list: never show it as current.
+  const serverDown = Boolean(list.error);
   const devices = useMemo(
     () =>
       (list.data ?? []).map(
@@ -119,15 +123,18 @@ export function FleetView() {
     for (const d of devices) c[d.status] = (c[d.status] ?? 0) + 1;
     return c;
   }, [devices]);
+  const show = (v: number) => (list.data && !serverDown ? v : null);
 
   return (
     <div className="flex flex-col gap-5">
-      {list.error && !list.data && (
+      {serverDown && (
         <Alert variant="destructive">
           <AlertTitle>Central server unreachable</AlertTitle>
           <AlertDescription>
-            {list.error.message}. Edge devices keep working on their own; this
-            view needs the central server.
+            {list.data
+              ? `Device statuses below are the last known state (${formatTime(list.updatedAt)}) and are shown as unknown until the server answers again.`
+              : list.error?.message}{" "}
+            Edge devices keep working and recording on their own.
           </AlertDescription>
         </Alert>
       )}
@@ -140,23 +147,17 @@ export function FleetView() {
         />
         <MetricTile
           label="Online"
-          value={
-            list.data
-              ? (counts.online ?? 0) + (counts.synchronizing ?? 0)
-              : null
-          }
+          value={show((counts.online ?? 0) + (counts.synchronizing ?? 0))}
           hint="incl. synchronizing"
         />
         <MetricTile
           label="Attention"
-          value={
-            list.data ? (counts.degraded ?? 0) + (counts.error ?? 0) : null
-          }
+          value={show((counts.degraded ?? 0) + (counts.error ?? 0))}
           hint="degraded or error"
         />
         <MetricTile
           label="Offline"
-          value={list.data ? (counts.offline ?? 0) : null}
+          value={show(counts.offline ?? 0)}
           hint={counts.revoked ? `${counts.revoked} revoked` : undefined}
         />
         <MetricTile
@@ -172,34 +173,15 @@ export function FleetView() {
         icon={Server}
         bodyClassName="p-0"
         actions={
-          <div className="flex items-center gap-3">
-            <StatusIndicator
-              tone={
-                liveState === "live"
-                  ? "online"
-                  : liveState === "connecting"
-                    ? "warning"
-                    : "idle"
-              }
-              label={
-                liveState === "live"
-                  ? "Live"
-                  : liveState === "connecting"
-                    ? "Connecting"
-                    : "Live updates off"
-              }
-              pulse={liveState === "live"}
-            />
-            {canManage && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setEnrollOpen(true)}
-              >
-                <Plus className="size-4" /> Add device
-              </Button>
-            )}
-          </div>
+          canManage && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEnrollOpen(true)}
+            >
+              <Plus className="size-4" /> Add device
+            </Button>
+          )
         }
       >
         {list.data && devices.length === 0 ? (
@@ -208,14 +190,19 @@ export function FleetView() {
             then register the agent with it.
           </p>
         ) : (
-          <Table>
+          <Table data-testid="fleet-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Device</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">CPU</TableHead>
+                <TableHead className="text-right">RAM</TableHead>
+                <TableHead className="text-right">GPU</TableHead>
+                <TableHead className="text-right">Temp</TableHead>
+                <TableHead className="text-right">Disk</TableHead>
+                <TableHead>Network</TableHead>
                 <TableHead>Cameras</TableHead>
                 <TableHead>AI</TableHead>
-                <TableHead className="text-right">Queue</TableHead>
                 <TableHead>Config</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead>Heartbeat</TableHead>
@@ -224,12 +211,14 @@ export function FleetView() {
             <TableBody>
               {devices.map((d) => {
                 const cams = d.camera_status ?? {};
-                const online = cams.by_status?.online ?? 0;
+                const hw = d.metrics?.hardware ?? {};
+                const net = hw.network;
                 return (
                   <TableRow
                     key={d.id}
                     className="cursor-pointer"
                     onClick={() => setSelected(d.id)}
+                    data-device={d.name}
                   >
                     <TableCell>
                       <div className="font-medium">{d.name}</div>
@@ -238,26 +227,58 @@ export function FleetView() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <FleetStatusIndicator status={d.status} />
-                      {d.status_reason && d.status !== "online" && (
+                      {serverDown ? (
+                        <StatusIndicator tone="idle" label="Unknown" />
+                      ) : (
+                        <FleetStatusIndicator status={d.status} />
+                      )}
+                      {(serverDown ||
+                        (d.status_reason && d.status !== "online")) && (
                         <div
-                          className="max-w-56 truncate text-xs text-muted-foreground"
-                          title={d.status_reason}
+                          className="max-w-52 truncate text-xs text-muted-foreground"
+                          title={d.status_reason ?? ""}
                         >
-                          {d.status_reason}
+                          {serverDown
+                            ? `last known: ${d.status}`
+                            : d.status_reason}
                         </div>
                       )}
                     </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {pct(hw.cpu?.percent)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {pct(hw.memory?.percent)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {hw.gpu?.available
+                        ? pct(hw.gpu.utilization_percent)
+                        : "none"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {hw.temperature?.available && hw.temperature.max_c != null
+                        ? `${Math.round(hw.temperature.max_c)}°C`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {pct(hw.disk?.used_percent)}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {net
+                        ? net.connected
+                          ? `${net.interfaces?.length ?? 0} up`
+                          : "down"
+                        : "—"}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {cams.total != null ? `${online}/${cams.total}` : "—"}
+                      {cams.total != null
+                        ? `${cams.by_status?.online ?? 0}/${cams.total}`
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-xs">
                       {d.ai_status?.enabled
                         ? (d.ai_status.mode ?? "on")
                         : "off"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs">
-                      {d.sync_status?.pending ?? "—"}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {d.desired_config_version === 0
@@ -295,7 +316,7 @@ export function FleetView() {
                   n.level === "error"
                     ? "text-destructive"
                     : n.level === "warning"
-                      ? "text-amber-600 dark:text-amber-400"
+                      ? "text-status-warning"
                       : ""
                 }
               >

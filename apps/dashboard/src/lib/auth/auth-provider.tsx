@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { api, ApiError, NetworkError } from "@/lib/api/client";
 import type { CurrentUser } from "@/lib/api/types";
@@ -46,32 +53,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
-  const resolveSession = useCallback(async (token: string | null, signal?: AbortSignal) => {
-    if (!token) {
-      setState({ status: "anonymous" });
-      return;
-    }
-    try {
-      const user = await api.me(token, signal);
-      setState({ status: "authenticated", user, token });
-    } catch (err) {
-      if (signal?.aborted) return;
-      if (err instanceof ApiError && err.status === 401) {
-        writeToken(null);
+  const resolveSession = useCallback(
+    async (token: string | null, signal?: AbortSignal) => {
+      if (!token) {
         setState({ status: "anonymous" });
-      } else if (err instanceof NetworkError || (err instanceof ApiError && err.status >= 500)) {
-        setState({ status: "server_unreachable", token, message: err.message });
-      } else {
-        setState({ status: "server_unreachable", token, message: (err as Error).message });
+        return;
       }
-    }
-  }, []);
+      try {
+        const user = await api.me(token, signal);
+        setState({ status: "authenticated", user, token });
+      } catch (err) {
+        if (signal?.aborted) return;
+        if (err instanceof ApiError && err.status === 401) {
+          writeToken(null);
+          setState({ status: "anonymous" });
+        } else if (
+          err instanceof NetworkError ||
+          (err instanceof ApiError && err.status >= 500)
+        ) {
+          setState({
+            status: "server_unreachable",
+            token,
+            message: err.message,
+          });
+        } else {
+          setState({
+            status: "server_unreachable",
+            token,
+            message: (err as Error).message,
+          });
+        }
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     // Session state lives in localStorage (an external system), so it is resolved after mount,
     // in a microtask (never synchronously inside the effect body).
-    void Promise.resolve().then(() => resolveSession(readToken(), controller.signal));
+    void Promise.resolve().then(() =>
+      resolveSession(readToken(), controller.signal),
+    );
     return () => controller.abort();
   }, [resolveSession, attempt]);
 
@@ -94,7 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAttempt((n) => n + 1);
   }, []);
 
-  const value = useMemo(() => ({ state, login, logout, retry }), [state, login, logout, retry]);
+  const value = useMemo(
+    () => ({ state, login, logout, retry }),
+    [state, login, logout, retry],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

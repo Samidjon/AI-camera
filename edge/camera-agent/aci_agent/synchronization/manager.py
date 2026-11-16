@@ -85,6 +85,7 @@ class NetworkManager:
         metrics_provider: Callable[[], dict] | None = None,
         config_appliers: dict[str, Callable[[Any], None]] | None = None,
         transport: httpx.BaseTransport | None = None,
+        fingerprint_provider: Callable[[], object] | None = None,
     ) -> None:
         self.settings = settings
         self.identity = identity
@@ -93,6 +94,9 @@ class NetworkManager:
         self._status_provider = status_provider or dict
         self._metrics_provider = metrics_provider or dict
         self._transport = transport
+        self._fingerprint = fingerprint_provider
+        self._last_fingerprint: object = None
+        self._last_heartbeat_at = 0.0
         self._appliers: dict[str, Callable[[Any], None]] = {
             "device_name": lambda v: self.identity.rename(str(v)),
             "heartbeat_interval_s": self._apply_heartbeat_interval,
@@ -295,6 +299,12 @@ class NetworkManager:
                 self._client.set_credentials(link.remote_device_id or self.identity.device_id, secret)
             try:
                 now = time.monotonic()
+                if self._fingerprint is not None and now - self._last_heartbeat_at >= 5:
+                    try:
+                        if self._fingerprint() != self._last_fingerprint:
+                            self._next_heartbeat = 0.0  # camera / AI status changed: report it now
+                    except Exception:  # noqa: BLE001
+                        pass
                 if now >= self._next_heartbeat:
                     self._heartbeat(link.config_version)
                     self._next_heartbeat = time.monotonic() + self._heartbeat_interval
@@ -382,7 +392,13 @@ class NetworkManager:
             **extra,
         }
         self._reported_pending = int(payload["sync"].get("pending") or 0)
+        if self._fingerprint is not None:
+            try:
+                self._last_fingerprint = self._fingerprint()
+            except Exception:  # noqa: BLE001
+                self._last_fingerprint = None
         reply = self._client.heartbeat(payload)
+        self._last_heartbeat_at = time.monotonic()
         self.heartbeats += 1
         self.links.touch("last_heartbeat_at")
         try:

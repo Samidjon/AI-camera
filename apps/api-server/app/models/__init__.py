@@ -15,6 +15,7 @@ from app.models.device import (
     SynchronizationLog,
 )
 from app.models.event import CameraEvent, EventSource
+from app.models.settings import SystemSetting
 from app.models.user import Role, User
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "EnrollmentToken",
     "EventStatistic",
     "SynchronizationLog",
+    "SystemSetting",
     "AuditLog",
     "Camera",
     "CameraEvent",

@@ -3,24 +3,31 @@
 from __future__ import annotations
 
 import base64
+import csv
+import io
+import json
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, func, or_, select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import Text, and_, cast, func, or_, select
 
 from app.api.deps import DbDep, SettingsDep, require_permission
 from app.api.device_auth import CurrentDevice
 from app.core.errors import AppError, NotFoundError, PermissionDeniedError
 from app.core.ratelimit import limiter
-from app.models import CameraEvent, EventStatistic, SynchronizationLog, User
+from app.models import Camera, CameraEvent, EdgeDevice, EventStatistic, SynchronizationLog, User
+from app.processing.event_processor import EVENT_CATEGORIES
 from app.realtime.hub import hub
 from app.schemas.devices import EventBatchIn, EventBatchOut, EventOut, EventsPageOut, EventStatOut
+from app.services import system_settings
 
 router = APIRouter()
 CanReadEvents = Annotated[User, Depends(require_permission("events:read"))]
+CanExport = Annotated[User, Depends(require_permission("events:export"))]
 
 
 class PayloadTooLarge(AppError):
@@ -28,14 +35,16 @@ class PayloadTooLarge(AppError):
     code = "payload_too_large"
 
 
-def _event_out(e: CameraEvent) -> EventOut:
-    def aw(dt):
-        return dt if dt is None or dt.tzinfo else dt.replace(tzinfo=UTC)
+def _aw(dt):
+    return dt if dt is None or dt.tzinfo else dt.replace(tzinfo=UTC)
 
+
+def _event_out(e: CameraEvent, camera_name: str | None = None, device_name: str | None = None) -> EventOut:
     return EventOut(
         id=e.id, device_id=e.device_id, camera_id=e.camera_id, camera_ref=e.camera_ref, event_type=e.event_type,
-        source=e.source, occurred_at=aw(e.occurred_at), received_at=aw(e.received_at), zone_id=e.zone_id,
-        line_id=e.line_id, track_id=e.track_id, metadata=e.event_metadata or {},
+        source=e.source, occurred_at=_aw(e.occurred_at), received_at=_aw(e.received_at), zone_id=e.zone_id,
+        line_id=e.line_id, track_id=e.track_id, metadata=e.event_metadata or {}, camera_name=camera_name,
+        device_name=device_name,
     )  # fmt: skip
 
 
@@ -49,7 +58,10 @@ def upload_batch(body: EventBatchIn, request: Request, device: CurrentDevice, db
     if len(body.events) > settings.events_batch_max:
         raise PayloadTooLarge(f"At most {settings.events_batch_max} events per batch")
     started = time.perf_counter()
-    result = request.app.state.event_processor.process(db, device, body.events)
+    privacy = system_settings.load(db)
+    result = request.app.state.event_processor.process(
+        db, device, body.events, strip_person_attributes=not privacy.store_person_attributes
+    )
     status = "ok" if not result.rejected else ("partial" if result.accepted or result.duplicate else "failed")
     db.add(
         SynchronizationLog(
@@ -85,39 +97,129 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         raise AppError("Invalid cursor", code="invalid_cursor") from None
 
 
+def _filtered(
+    *,
+    device_id: uuid.UUID | None,
+    camera_ref: str | None,
+    event_type: list[str] | None,
+    category: list[str] | None,
+    source: str | None,
+    since: datetime | None,
+    until: datetime | None,
+    q: str | None,
+):
+    query = (
+        select(CameraEvent, Camera.name, EdgeDevice.name)
+        .outerjoin(Camera, Camera.id == CameraEvent.camera_id)
+        .outerjoin(EdgeDevice, EdgeDevice.id == CameraEvent.device_id)
+    )
+    if device_id:
+        query = query.where(CameraEvent.device_id == device_id)
+    if camera_ref:
+        query = query.where(CameraEvent.camera_ref == camera_ref)
+    types: set[str] = set(event_type or [])
+    for c in category or []:
+        if c not in EVENT_CATEGORIES:
+            raise AppError(f"Unknown category '{c[:30]}'", code="invalid_category")
+        types |= set(EVENT_CATEGORIES[c])
+    if types:
+        query = query.where(CameraEvent.event_type.in_(sorted(types)[:50]))
+    if source:
+        query = query.where(CameraEvent.source == source)
+    if since:
+        query = query.where(CameraEvent.occurred_at >= since)
+    if until:
+        query = query.where(CameraEvent.occurred_at < until)
+    if q and q.strip():
+        term = f"%{q.strip().lower()[:100]}%"
+        query = query.where(
+            or_(
+                func.lower(CameraEvent.event_type).like(term),
+                func.lower(CameraEvent.camera_ref).like(term),
+                func.lower(CameraEvent.zone_id).like(term),
+                func.lower(CameraEvent.line_id).like(term),
+                func.lower(CameraEvent.track_id).like(term),
+                func.lower(Camera.name).like(term),
+                func.lower(EdgeDevice.name).like(term),
+                func.lower(cast(CameraEvent.event_metadata, Text)).like(term),
+            )
+        )
+    return query
+
+
+def _filters(
+    device_id: uuid.UUID | None = None,
+    camera_ref: Annotated[str | None, Query(max_length=64)] = None,
+    event_type: Annotated[list[str] | None, Query()] = None,
+    category: Annotated[list[str] | None, Query(description="motion, person, zone, line, camera_error, ...")] = None,
+    source: Annotated[str | None, Query(pattern="^(standard|ai|system)$")] = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    q: Annotated[str | None, Query(max_length=100, description="Search text")] = None,
+) -> dict:
+    return {"device_id": device_id, "camera_ref": camera_ref, "event_type": event_type, "category": category,
+            "source": source, "since": since, "until": until, "q": q}  # fmt: skip
+
+
+Filters = Annotated[dict, Depends(_filters)]
+
+
 @router.get("", response_model=EventsPageOut)
 def list_events(
     _: CanReadEvents,
     db: DbDep,
-    device_id: uuid.UUID | None = None,
-    camera_ref: Annotated[str | None, Query(max_length=64)] = None,
-    event_type: Annotated[list[str] | None, Query()] = None,
-    source: Annotated[str | None, Query(pattern="^(standard|ai|system)$")] = None,
-    since: datetime | None = None,
-    until: datetime | None = None,
+    filters: Filters,
     cursor: Annotated[str | None, Query(max_length=200)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
 ):
-    q = select(CameraEvent)
-    if device_id:
-        q = q.where(CameraEvent.device_id == device_id)
-    if camera_ref:
-        q = q.where(CameraEvent.camera_ref == camera_ref)
-    if event_type:
-        q = q.where(CameraEvent.event_type.in_(event_type[:20]))
-    if source:
-        q = q.where(CameraEvent.source == source)
-    if since:
-        q = q.where(CameraEvent.occurred_at >= since)
-    if until:
-        q = q.where(CameraEvent.occurred_at < until)
+    query = _filtered(**filters)
     if cursor:
         when, ident = _decode_cursor(cursor)
-        q = q.where(or_(CameraEvent.occurred_at < when, and_(CameraEvent.occurred_at == when, CameraEvent.id < ident)))
-    rows = list(db.scalars(q.order_by(CameraEvent.occurred_at.desc(), CameraEvent.id.desc()).limit(limit + 1)))
+        query = query.where(
+            or_(CameraEvent.occurred_at < when, and_(CameraEvent.occurred_at == when, CameraEvent.id < ident))
+        )
+    rows = db.execute(query.order_by(CameraEvent.occurred_at.desc(), CameraEvent.id.desc()).limit(limit + 1)).all()
     more = len(rows) > limit
     rows = rows[:limit]
-    return EventsPageOut(items=[_event_out(e) for e in rows], next_cursor=_encode_cursor(rows[-1]) if more else None)
+    return EventsPageOut(
+        items=[_event_out(e, cam, dev) for e, cam, dev in rows],
+        next_cursor=_encode_cursor(rows[-1][0]) if more else None,
+    )
+
+
+CSV_COLUMNS = ["occurred_at", "event_type", "source", "device", "camera", "camera_ref", "zone_id", "line_id",
+               "track_id", "received_at", "id", "metadata"]  # fmt: skip
+EXPORT_MAX = 100_000
+
+
+@router.get("/export.csv")
+def export_csv(_: CanExport, db: DbDep, filters: Filters):
+    """CSV export with the same filters as the list (newest first, at most 100 000 rows)."""
+    query = _filtered(**filters).order_by(CameraEvent.occurred_at.desc(), CameraEvent.id.desc()).limit(EXPORT_MAX)
+    result = db.execute(query).all()
+
+    def rows():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(CSV_COLUMNS)
+        for e, cam, dev in result:
+            writer.writerow([
+                _aw(e.occurred_at).isoformat(), e.event_type, e.source, dev or "", cam or "", e.camera_ref or "",
+                e.zone_id or "", e.line_id or "", e.track_id or "", _aw(e.received_at).isoformat(), str(e.id),
+                json.dumps(e.event_metadata or {}, ensure_ascii=False, separators=(",", ":")),
+            ])  # fmt: skip
+            if buf.tell() > 64_000:
+                yield buf.getvalue()
+                buf.seek(0)
+                buf.truncate()
+        yield buf.getvalue()
+
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    return StreamingResponse(
+        rows(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="events-{stamp}.csv"', "Cache-Control": "no-store"},
+    )
 
 
 @router.get("/statistics", response_model=list[EventStatOut])
@@ -151,7 +253,12 @@ def statistics_summary(_: CanReadEvents, db: DbDep, since: datetime | None = Non
 
 @router.get("/{event_id}", response_model=EventOut)
 def get_event(event_id: uuid.UUID, _: CanReadEvents, db: DbDep):
-    e = db.get(CameraEvent, event_id)
-    if e is None:
+    row = db.execute(
+        select(CameraEvent, Camera.name, EdgeDevice.name)
+        .outerjoin(Camera, Camera.id == CameraEvent.camera_id)
+        .outerjoin(EdgeDevice, EdgeDevice.id == CameraEvent.device_id)
+        .where(CameraEvent.id == event_id)
+    ).first()
+    if row is None:
         raise NotFoundError("Event not found")
-    return _event_out(e)
+    return _event_out(*row)
