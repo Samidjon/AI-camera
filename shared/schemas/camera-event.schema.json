@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-camera-intelligence.local/schemas/camera-event.schema.json",
+  "title": "CameraEvent",
+  "description": "Event produced by an edge agent (Standard Vision Engine, optional AI Engine or system health). The `id` is generated at the source and makes uploads idempotent. Mirrors the `camera_events` table of the central server.",
+  "type": "object",
+  "required": ["id", "event_type", "source", "occurred_at"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "Event UUID generated on the edge device" },
+    "camera_id": { "type": ["string", "null"], "format": "uuid" },
+    "event_type": {
+      "type": "string",
+      "maxLength": 64,
+      "examples": ["motion_started", "motion_ended", "zone_entered", "zone_exited", "line_crossed", "camera_offline"]
+    },
+    "source": {
+      "type": "string",
+      "enum": ["standard", "ai", "system"],
+      "description": "standard = no-AI vision engine; ai = optional AI engine; system = camera/device health"
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "zone_id": { "type": ["string", "null"], "maxLength": 64 },
+    "track_id": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "description": "Temporary, camera- and session-scoped track id. Never a personal identifier."
+    },
+    "metadata": { "type": "object", "default": {} }
+  }
+}

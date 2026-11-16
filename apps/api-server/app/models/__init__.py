@@ -1,0 +1,19 @@
+"""ORM models. Import everything here so Alembic autogenerate sees all tables."""
+
+from app.models.audit import AuditLog, SystemLog
+from app.models.camera import Camera, CameraGroup, CameraSourceType, CameraStatus
+from app.models.event import CameraEvent, EventSource
+from app.models.user import Role, User
+
+__all__ = [
+    "AuditLog",
+    "Camera",
+    "CameraEvent",
+    "CameraGroup",
+    "CameraSourceType",
+    "CameraStatus",
+    "EventSource",
+    "Role",
+    "SystemLog",
+    "User",
+]
