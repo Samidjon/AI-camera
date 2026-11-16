@@ -1,6 +1,6 @@
 [project]
 name = "aci-api-server"
-version = "0.7.0"
+version = "0.8.0"
 description = "AI Camera Intelligence — Central API Server"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -14,6 +14,7 @@ dependencies = [
     "redis>=5.0",
     "pyjwt>=2.9",
     "bcrypt>=4.2",
+    "fpdf2>=2.8",
 ]
 
 [dependency-groups]

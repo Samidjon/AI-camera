@@ -16,6 +16,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.alerts import runtime as alert_runtime
+from app.alerts.engine import AlertEngine, Notifier
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
@@ -63,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.started_at = datetime.now(UTC)
         app.state.started_monotonic = time.monotonic()
         hub.bind(asyncio.get_running_loop())
+        notifier.start()
         monitor = asyncio.create_task(device_monitor(settings))
         logger.info(
             "API starting",
@@ -73,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         with contextlib.suppress(asyncio.CancelledError):
             await monitor
         hub.bind(None)
+        notifier.stop()
         set_engine(None)  # dispose pool on shutdown
         logger.info("API stopped")
 
@@ -90,6 +94,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.started_at = datetime.now(UTC)
     app.state.started_monotonic = time.monotonic()
     app.state.settings = settings
+    notifier = Notifier(settings, session_scope)
+    app.state.alert_engine = AlertEngine(settings, notifier)
+    alert_runtime.install(app.state.alert_engine)
     app.state.event_processor = EventProcessor(
         max_future_skew_s=settings.events_max_future_skew_s, max_age_days=settings.events_max_age_days
     )

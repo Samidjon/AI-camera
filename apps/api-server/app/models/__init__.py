@@ -1,5 +1,6 @@
 """ORM models. Import everything here so Alembic autogenerate sees all tables."""
 
+from app.models.alert import Alert, AlertKind, AlertRule, NotificationDelivery
 from app.models.audit import AuditLog, SystemLog
 from app.models.camera import Camera, CameraGroup, CameraSourceType, CameraStatus
 from app.models.device import (
@@ -19,6 +20,10 @@ from app.models.settings import SystemSetting
 from app.models.user import Role, User
 
 __all__ = [
+    "Alert",
+    "AlertKind",
+    "AlertRule",
+    "NotificationDelivery",
     "ConfigStatus",
     "DeviceConfiguration",
     "DeviceCredential",

@@ -11,6 +11,7 @@ from fastapi.security.utils import get_authorization_scheme_param
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.alerts import runtime as alerts
 from app.api.deps import DbDep, SettingsDep, get_current_user, require_permission
 from app.api.device_auth import CurrentDevice, client_ip, get_current_device
 from app.core.errors import ConflictError, NotFoundError
@@ -91,6 +92,7 @@ def heartbeat(payload: dict, request: Request, device: CurrentDevice, db: DbDep,
     """Device health report (identified by its credential). Reply carries the desired config version."""
     limiter.enforce(f"heartbeat:{device.id}", settings.rate_heartbeat_per_s, settings.rate_heartbeat_burst)
     reply = svc.process_heartbeat(db, settings, device, payload, client_ip(request))
+    alerts.evaluate_heartbeat(db, device)
     db.commit()
     return reply
 

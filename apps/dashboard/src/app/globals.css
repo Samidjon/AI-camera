@@ -91,6 +91,19 @@
   --status-warning: oklch(0.62 0.15 70);
   --status-error: oklch(0.56 0.21 27);
   --status-idle: oklch(0.58 0.012 250);
+
+  /* Data-viz roles (validated reference palette: fixed categorical order, one-hue sequential). */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-seq-0: #f0efec;
+  --viz-seq-1: #cde2fb;
+  --viz-seq-2: #86b6ef;
+  --viz-seq-3: #3987e5;
+  --viz-seq-4: #256abf;
+  --viz-seq-5: #184f95;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
 }
 
 /* Professional dark surveillance palette: charcoal surfaces, one cool "signal" accent,
@@ -132,6 +145,22 @@
   --status-warning: oklch(0.8 0.14 80);
   --status-error: oklch(0.68 0.19 25);
   --status-idle: oklch(0.58 0.01 250);
+
+}
+
+/* Data-viz roles, dark steps (selected for the dark surface, not an automatic flip). */
+:root.dark {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-seq-0: #262624;
+  --viz-seq-1: #104281;
+  --viz-seq-2: #1c5cab;
+  --viz-seq-3: #2a78d6;
+  --viz-seq-4: #5598e7;
+  --viz-seq-5: #9ec5f4;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
 }
 
 @layer base {

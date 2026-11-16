@@ -157,7 +157,10 @@ def create_app(
             "camera_list": camera_list(),
             "health": {"database_ok": db_ok, "storage_paused": events.storage_paused},
             "cameras": {"total": mgr.repo.count(), "by_status": mgr.status_counts()},
-            "ai": {"enabled": ai.config.enabled, "mode": ai.mode.value, "reason": ai.mode_reason},
+            "ai": {
+                "enabled": ai.config.enabled, "mode": ai.mode.value, "reason": ai.mode_reason,
+                "model": ai.config.model_id, **ai.metrics.snapshot(),  # inference fps / latency for reports
+            },  # fmt: skip
             "vision": vision.stats(),
             "events": {k: v for k, v in events.stats().items() if k in ("events_total", "dropped", "storage_paused")},
             "uptime_s": round(time.monotonic() - app.state.started, 1),

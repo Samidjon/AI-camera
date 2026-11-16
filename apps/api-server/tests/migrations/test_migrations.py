@@ -41,6 +41,9 @@ EXPECTED_TABLES = {
     "device_configurations",
     "event_statistics",
     "system_settings",
+    "alert_rules",
+    "alerts",
+    "notification_deliveries",
 }
 
 

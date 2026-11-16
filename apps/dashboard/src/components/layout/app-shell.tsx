@@ -21,6 +21,7 @@ import { StaleBanner } from "@/components/common/stale-banner";
 import { AiStatusChip } from "./ai-status-chip";
 import { Brand } from "./brand";
 import { isActive, NAV_ITEMS } from "./nav-items";
+import { AlertBell } from "./alert-bell";
 import { LiveStatus } from "./live-status";
 import { ServerLinkStatus } from "./server-link-status";
 import { SidebarNav } from "./sidebar-nav";
@@ -163,6 +164,7 @@ function TopBar() {
         <AiStatusChip />
         <LiveStatus />
         <ServerLinkStatus />
+        <AlertBell />
         <ThemeToggle />
         <UserMenu />
       </div>

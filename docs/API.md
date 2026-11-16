@@ -76,6 +76,25 @@ central server implements in MVP 06: [EDGE_AGENT.md](EDGE_AGENT.md).
 | GET / PATCH | `/system/settings` | any / settings:manage | Retention and privacy |
 | GET | `/system/configuration` | any | Effective server configuration (no secrets) |
 
+### Analytics, reports, alerts (MVP 08)
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| GET | `/analytics/summary?since=&until=&tz=&device_id=&camera_ref=` | events:read (people section: observations:read) | Standard (motion) and AI (people) analytics kept separate, health; hourly/daily series in the given IANA zone, weekday×hour heatmap |
+| GET | `/analytics/ai-performance` | events:read | Inference FPS / latency per device from heartbeats |
+| GET | `/analytics/reports/{daily\|weekly\|monthly\|camera\|device\|zone\|ai}?format=json\|csv\|pdf&day=` | events:read | Report for the period; `camera` needs `device_id`+`camera_ref`, `device` needs `device_id` |
+| GET | `/alerts?status=open\|acknowledged\|resolved\|active&severity=` | events:read | Newest first |
+| GET | `/alerts/counts` | events:read | Open / acknowledged / resolved |
+| POST | `/alerts/{id}/acknowledge`, `/alerts/{id}/resolve`, `/alerts/acknowledge-all` | events:ack | |
+| GET | `/alerts/{id}/deliveries` | events:read | In-app / e-mail delivery status, attempts, error |
+| GET | `/alert-rules/catalog` | events:read | 14 alert kinds (group, label, default severity / threshold) + SMTP status |
+| GET / POST | `/alert-rules` | events:read / settings:manage | List / create |
+| PUT / DELETE | `/alert-rules/{id}` | settings:manage | Update / delete (raised alerts are kept) |
+| POST | `/alert-rules/recommended` | settings:manage | Adds the 11 health rules (in-app only), idempotent |
+| POST | `/alert-rules/test-email` | settings:manage | Sends a test e-mail via the configured SMTP |
+
+WebSocket: `alert.created` (events:read) after the raising transaction commits.
+
 Edge agent (MVP 07): `WS /api/v1/live` — multiplexed live video (first message `{type:"auth", token}`,
 then `{type:"subscribe", cameras, layers, max_fps, max_width}`; binary frames). See [DASHBOARD.md](DASHBOARD.md).
 
