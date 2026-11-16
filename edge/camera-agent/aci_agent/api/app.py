@@ -21,6 +21,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from aci_agent import __version__
+from aci_agent.ai_engine.configuration import AIEnvSettings
+from aci_agent.ai_engine.engine import AIEngine
+from aci_agent.api.ai_api import build_ai_router
+from aci_agent.api.discovery_api import build_discovery_router
 from aci_agent.api.schemas import (
     AgentStatusOut,
     CameraCreate,
@@ -33,6 +37,7 @@ from aci_agent.api.schemas import (
     TestResultOut,
 )
 from aci_agent.api.vision_api import build_vision_router
+from aci_agent.camera.discovery import DiscoveryService
 from aci_agent.camera.manager import (
     CameraConflictError,
     CameraInput,
@@ -55,6 +60,7 @@ from aci_agent.security.auth import (
 from aci_agent.security.crypto import SecretBox
 from aci_agent.standard_engine.overlay import draw_overlays, parse_layers
 from aci_agent.standard_engine.pipeline import VisionManager
+from aci_agent.storage.ai_repository import AIRepository
 from aci_agent.storage.database import Database
 from aci_agent.storage.repository import CameraRepository, DuplicateNameError
 from aci_agent.storage.vision_repository import VisionRepository
@@ -71,11 +77,17 @@ def _error(status_code: int, code: str, message: str, details=None) -> JSONRespo
     )
 
 
+def settings_env_file(settings: AgentSettings) -> str | None:
+    """Tests build settings without a .env file; AI settings follow the same choice."""
+    return None if settings.environment == "test" else ".env"
+
+
 def create_app(
     settings: AgentSettings,
     factory: CaptureFactory | None = None,
     manager: CameraManager | None = None,
     store: EventStore | None = None,
+    ai_env: AIEnvSettings | None = None,
 ) -> FastAPI:
     configure_logging(settings.log_level, settings.log_json)
     db: Database | None = None
@@ -100,18 +112,24 @@ def create_app(
         mgr, vision_repo, events, resources,
         max_rss_mb=settings.vision.max_rss_mb, supervisor_interval_s=settings.vision.supervisor_interval_s,
     )  # fmt: skip
+    discovery = DiscoveryService(mgr)
+    ai_repo = AIRepository(mgr.repo.db)
+    # Optional AI layer: if anything in it fails, capture + Standard Engine + storage continue.
+    ai = AIEngine(mgr, events, ai_repo, vision_repo, env=ai_env or AIEnvSettings(_env_file=settings_env_file(settings)))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.started = time.monotonic()
         mgr.start()
         vision.start()
+        ai.start()
         logger.info("Edge agent started", extra={"cameras": mgr.repo.count(), "auth": settings.auth_configured})
         try:
             yield
         finally:
             # Safe shutdown order: stop analysis (closes open motion episodes), stop capture,
             # then flush and checkpoint the event database.
+            await anyio.to_thread.run_sync(ai.shutdown)
             await anyio.to_thread.run_sync(vision.shutdown)
             await anyio.to_thread.run_sync(mgr.shutdown)
             await anyio.to_thread.run_sync(events.close)
@@ -129,6 +147,7 @@ def create_app(
     app.state.started = time.monotonic()
     app.state.manager = mgr
     app.state.vision = vision
+    app.state.ai = ai
     app.state.events = events
     app.add_middleware(
         CORSMiddleware,
@@ -230,6 +249,7 @@ def create_app(
             vision=vision.stats(),
             events=events.stats(),
             resources=resources.sample(),
+            ai={"mode": ai.mode.value, "reason": ai.mode_reason, "enabled": ai.config.enabled},
         )
 
     # ------------------------------------------------------------ cameras
@@ -335,9 +355,10 @@ def create_app(
         image = frame.image
         if layers:
             worker = vision.worker(camera_id)
+            people = (ai.camera_state(camera_id) or {}).get("people") if "people" in layers else None
             image = draw_overlays(
                 image, worker.state() if worker else None, worker.zones if worker else [],
-                worker.lines if worker else [], layers,
+                worker.lines if worker else [], layers, people=people,
             )  # fmt: skip
         if image.shape[1] > s.preview_max_width:
             scale = s.preview_max_width / image.shape[1]
@@ -433,4 +454,6 @@ def create_app(
 
     app.include_router(router)
     app.include_router(build_vision_router(require, mgr, vision_repo, vision, events))
+    app.include_router(build_ai_router(require, ai, ai_repo))
+    app.include_router(build_discovery_router(require, discovery))
     return app

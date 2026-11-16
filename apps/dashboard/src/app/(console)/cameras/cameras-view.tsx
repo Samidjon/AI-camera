@@ -1,11 +1,12 @@
 "use client";
 
-import { Cctv, FolderCog, LayoutGrid, List, Plus, RefreshCw, ServerOff } from "lucide-react";
+import { Cctv, FolderCog, LayoutGrid, List, Plus, Radar, RefreshCw, ServerOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { CameraDetailsSheet } from "@/components/cameras/camera-details-sheet";
-import { CameraFormDialog } from "@/components/cameras/camera-form-dialog";
+import { CameraFormDialog, type CameraPrefill } from "@/components/cameras/camera-form-dialog";
+import { NetworkScanDialog } from "@/components/cameras/network-scan-dialog";
 import { STATUS_META } from "@/components/cameras/camera-status";
 import { CameraTable } from "@/components/cameras/camera-table";
 import { CameraTile } from "@/components/cameras/camera-tile";
@@ -39,7 +40,12 @@ export function CamerasView() {
   const [groupFilter, setGroupFilter] = useState(ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [form, setForm] = useState<{ open: boolean; editId: string | null; key: number }>({ open: false, editId: null, key: 0 });
+  const [form, setForm] = useState<{ open: boolean; editId: string | null; key: number; prefill?: CameraPrefill }>({
+    open: false,
+    editId: null,
+    key: 0,
+  });
+  const [scanOpen, setScanOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [liveOverride, setLiveOverride] = useState<string[]>([]);
@@ -93,6 +99,9 @@ export function CamerasView() {
               <>
                 <Button variant="outline" size="sm" onClick={() => setGroupsOpen(true)}>
                   <FolderCog /> Groups
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setScanOpen(true)}>
+                  <Radar /> Scan network
                 </Button>
                 <Button size="sm" onClick={() => setForm((f) => ({ open: true, editId: null, key: f.key + 1 }))}>
                   <Plus /> Add camera
@@ -240,6 +249,7 @@ export function CamerasView() {
           open={form.open}
           onOpenChange={(open) => setForm((f) => ({ ...f, open }))}
           camera={editing}
+          prefill={form.prefill}
           groups={groups}
           onSaved={refresh}
         />
@@ -252,6 +262,14 @@ export function CamerasView() {
           setDetailsOpen(false);
           setSelectedId(null);
           refresh();
+        }}
+      />
+      <NetworkScanDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onAdd={(prefill) => {
+          setScanOpen(false);
+          setForm((f) => ({ open: true, editId: null, key: f.key + 1, prefill }));
         }}
       />
       <GroupsDialog open={groupsOpen} onOpenChange={setGroupsOpen} groups={groups} onChanged={refresh} />

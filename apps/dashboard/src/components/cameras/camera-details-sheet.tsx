@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { agent } from "@/lib/agent/client";
 import type { Camera, CameraGroup, TestResult } from "@/lib/agent/types";
 import { ApiError } from "@/lib/api/client";
@@ -136,6 +137,29 @@ export function CameraDetailsSheet({
         </div>
 
         <div className="space-y-3 p-4">
+          <label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+            <span>
+              AI analysis for this camera
+              <span className="block text-xs text-muted-foreground">
+                Person detection (when the AI Engine is on). Motion detection always runs.
+              </span>
+            </span>
+            <Switch
+              aria-label="AI analysis for this camera"
+              checked={camera.options.ai_enabled !== false}
+              disabled={!can("cameras:manage") || busy !== null}
+              onCheckedChange={async (v) => {
+                if (!token) return;
+                setError(null);
+                try {
+                  await agent.updateCamera(token, camera.id, { options: { ai_enabled: v } });
+                  onChanged();
+                } catch (err) {
+                  setError(err instanceof ApiError ? err.message : "Edge agent is unreachable.");
+                }
+              }}
+            />
+          </label>
           <VisionStatus cameraId={camera.id} />
           {camera.last_error && camera.status !== "online" && (
             <Alert variant={camera.status === "error" ? "destructive" : "default"}>

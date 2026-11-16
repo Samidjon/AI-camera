@@ -71,7 +71,11 @@ class TextFormatter(logging.Formatter):
 
 
 def configure_logging(level: str = "INFO", json_output: bool = True) -> None:
-    handler = logging.StreamHandler(sys.stdout)
+    stream = sys.stdout
+    if hasattr(stream, "reconfigure"):
+        # Windows defaults stdout to a legacy code page; non-ASCII log text would be dropped.
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    handler = logging.StreamHandler(stream)
     handler.setFormatter(JsonFormatter() if json_output else TextFormatter())
     root = logging.getLogger()
     root.handlers[:] = [handler]

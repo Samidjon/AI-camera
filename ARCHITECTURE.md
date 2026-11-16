@@ -75,6 +75,7 @@ Standalone process next to the cameras; its own SQLite DB and local API. Details
 | `tracking/` | Temporary motion-object tracker (MVP 03) |
 | `events/` | Event model + local event database with async writer, retention, recovery (MVP 03) |
 | `monitoring/resources.py` | Process CPU / memory sampling, memory-limit protection (MVP 03) |
+| `ai_engine/` | Optional AI: provider interface, YOLOX on OpenCV DNN, model registry, ByteTrack, attributes, supervisor (MVP 04) |
 
 ### shared/
 
@@ -105,6 +106,10 @@ boundaries (`camera-event.schema.json`).
 | D18 | **Separate `events.db`** | High write volume, own retention; can be quarantined and rebuilt without touching camera config. |
 | D19 | **Overlays drawn by the agent into MJPEG** | Exact frame/overlay alignment without a second real-time channel; per-viewer layer selection. |
 | D20 | **Motion objects are never called people** | Without AI the engine can't classify; people counting is AI-only (MVP 04/08). |
+| D21 | **AI runs on OpenCV DNN with an ONNX model** (MVP 04) | No PyTorch/ONNX Runtime dependency; same runtime as capture; works on Jetson and mini PCs. |
+| D22 | **AI is a separate supervised layer** | One inference thread + watchdog; any AI failure is contained and the Standard Engine is the permanent fallback. |
+| D23 | **Models are local files pinned by SHA-256** | Spec: no automatic downloads from unverified sources. |
+| D24 | **Claude only for optional, rate-limited appearance attributes** | Per-frame detection must work offline; the cloud call is per track, non-blocking, privacy-constrained, opt-in. |
 
 ## Error format
 

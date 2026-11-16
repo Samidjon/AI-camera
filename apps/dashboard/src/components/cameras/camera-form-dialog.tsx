@@ -70,13 +70,23 @@ interface FormState {
   connect: boolean;
 }
 
-function initialState(camera?: Camera): FormState {
+export interface CameraPrefill {
+  name?: string;
+  source_type?: SourceType;
+  source_uri?: string;
+}
+
+function initialState(camera?: Camera, prefill?: CameraPrefill): FormState {
   return {
-    name: camera?.name ?? "",
+    name: camera?.name ?? prefill?.name ?? "",
     location: camera?.location ?? "",
     group_id: camera?.group_id ?? NO_GROUP,
-    source_type: camera?.source_type ?? "rtsp",
-    source_uri: camera ? (camera.source_type === "usb" ? camera.source.replace(/^usb:/, "") : camera.source) : "",
+    source_type: camera?.source_type ?? prefill?.source_type ?? "rtsp",
+    source_uri: camera
+      ? camera.source_type === "usb"
+        ? camera.source.replace(/^usb:/, "")
+        : camera.source
+      : (prefill?.source_uri ?? ""),
     username: "",
     password: "",
     clear_credentials: false,
@@ -103,17 +113,19 @@ export function CameraFormDialog({
   open,
   onOpenChange,
   camera,
+  prefill,
   groups,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   camera?: Camera;
+  prefill?: CameraPrefill;
   groups: CameraGroup[];
   onSaved: (camera: Camera) => void;
 }) {
   const { token } = usePermissions();
-  const [form, setForm] = useState<FormState>(() => initialState(camera));
+  const [form, setForm] = useState<FormState>(() => initialState(camera, prefill));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);

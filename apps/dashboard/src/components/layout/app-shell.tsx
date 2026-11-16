@@ -10,6 +10,7 @@ import { API_BASE_URL } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-provider";
 import { SystemStatusProvider } from "@/lib/system/system-status-provider";
 
+import { AiStatusChip } from "./ai-status-chip";
 import { Brand } from "./brand";
 import { isActive, NAV_ITEMS } from "./nav-items";
 import { ServerLinkStatus } from "./server-link-status";
@@ -119,6 +120,7 @@ function TopBar() {
       </div>
       <div className="ml-auto flex items-center gap-3">
         <UtcClock />
+        <AiStatusChip />
         <ServerLinkStatus />
         <UserMenu />
       </div>

@@ -32,3 +32,7 @@ Thumbs.db
 
 # Edge agent local data (database, keys, samples)
 edge/camera-agent/data/
+
+# Local AI model files (large, verified by sha256 in the model registry)
+edge/camera-agent/models/*.onnx
+edge/camera-agent/models/*.pt

@@ -28,8 +28,8 @@ const COMPONENT_META: Record<string, { label: string; icon: React.ComponentType<
 const ROADMAP = [
   { mvp: "01", name: "Core Foundation", state: "done" },
   { mvp: "02", name: "Camera Integration", state: "done" },
-  { mvp: "03", name: "Standard Vision Engine", state: "active" },
-  { mvp: "04", name: "AI Engine (optional)", state: "planned" },
+  { mvp: "03", name: "Standard Vision Engine", state: "done" },
+  { mvp: "04", name: "AI Engine (optional)", state: "active" },
   { mvp: "05", name: "Edge Runtime", state: "planned" },
   { mvp: "06", name: "Central Server", state: "planned" },
   { mvp: "07", name: "Web Dashboard", state: "planned" },

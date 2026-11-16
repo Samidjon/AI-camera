@@ -3,6 +3,40 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.4.0] — MVP 04 AI Engine — 2026-11-16
+
+### Added
+- Optional **AI Engine** in the edge agent (off by default, never required): `AIProvider` interface
+  (initialize / load_model / predict / health_check / shutdown) with a YOLOX-S (COCO) person detector on
+  OpenCV DNN — no PyTorch / ONNX Runtime dependency.
+- Model registry with pinned SHA-256, versions, statuses and validation; local files only, no auto-download.
+- ByteTrack person tracking (Kalman + two-stage association) with temporary camera-scoped IDs, entry /
+  exit, direction, lost-track handling; AI events `person_detected`, `person_left`, `person_crossed_line`.
+- Appearance attributes with value + confidence + provenance: on-device clothing colours; optional
+  Claude provider (`claude-opus-5-5`, structured output, refusal fallback) for clothing type, bag,
+  backpack, headwear — rate-limited, non-blocking, privacy-constrained, opt-in.
+- AI modes (disabled, loading, active, degraded, offline, error, recovering), inference watchdog and
+  timeouts, exponential-backoff recovery, memory guard, GPU probe and CPU fallback, status history,
+  error log; Standard Engine always continues.
+- Agent API `/api/v1/ai/*` (`ai:manage` for control); overlay layer `people`.
+- Dashboard **AI Engine** page (status, model, inference FPS, latency, detections, memory, GPU, enable /
+  disable, settings, Standard vs AI capabilities, errors); AI person events on the Events page.
+- Optional dependency group `claude` (`uv sync --extra claude`). 42 new agent tests.
+
+- Per-camera AI switch (`options.ai_enabled`) and an AI status indicator in the dashboard top bar.
+- **Network discovery** in the edge agent: ONVIF WS-Discovery, RTSP service scan with unauthenticated
+  `OPTIONS`, camera web-interface fingerprinting; private networks only, bounded, no credential
+  guessing. API `/api/v1/discovery/*`, dashboard "Scan network" dialog with one-click add.
+
+### Fixed
+- Editing any field of a USB or file camera reconnected its stream (it was treated as a credential
+  change) — a bug since MVP 02.
+- Log lines with non-ASCII characters were dropped on Windows (legacy console code page); agent and
+  server now log UTF-8.
+- Clothing-colour estimation could report a face's skin tone as a clothing colour on head-and-shoulder
+  views; colours now require a full-body box and exclude skin-tone pixels.
+- AI person tracks stayed open when a camera stopped delivering frames while reconnecting.
+
 ## [0.3.0] — MVP 03 Standard Vision Engine — 2026-11-16
 
 ### Added

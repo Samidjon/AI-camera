@@ -197,3 +197,15 @@ def test_restart_restores_cameras_from_local_db(settings, factory: FakeFactory):
     finally:
         m2.shutdown()
         db2.close()
+
+
+def test_editing_a_usb_camera_does_not_reconnect_it(manager: CameraManager, factory: FakeFactory):
+    """Regression: any edit of a USB / file camera used to count as a credential change and restart it."""
+    factory.add("usb:0")
+    cam = manager.create_camera(CameraInput(name="Webcam", source_type=SourceType.USB, source_uri="0")).config
+    assert wait_for(lambda: _status(manager, cam.id).status == CameraStatus.ONLINE)
+    handle = manager.stream_handle(cam.id)
+    manager.update_camera(cam.id, CameraInput(name="Desk webcam", source_type=SourceType.USB, source_uri="0",
+                                              options={"ai_enabled": False}))  # fmt: skip
+    assert manager.stream_handle(cam.id) is handle
+    assert manager.get_camera(cam.id).config.name == "Desk webcam"

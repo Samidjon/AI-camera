@@ -16,6 +16,7 @@ class CameraOptions(BaseModel):
     max_fps: float | None = Field(default=None, ge=0.5, le=120, description="Cap on frames delivered to consumers")
     loop: bool | None = Field(default=None, description="File sources: restart at end of file")
     onvif_profile: int | None = Field(default=None, ge=0, le=16, description="ONVIF media profile index")
+    ai_enabled: bool | None = Field(default=None, description="Run the optional AI Engine on this camera")
 
 
 class CameraCreate(BaseModel):
@@ -176,3 +177,4 @@ class AgentStatusOut(BaseModel):
     vision: dict = Field(default_factory=dict)
     events: dict = Field(default_factory=dict)
     resources: dict = Field(default_factory=dict)
+    ai: dict = Field(default_factory=dict)

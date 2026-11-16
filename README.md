@@ -3,7 +3,10 @@
 Modular, offline-first video-surveillance platform: IP cameras → edge agents (local computer
 vision, optional AI) → central server → web control center.
 
-> **Status: MVP 03 — Standard Vision Engine.** Central API server, auth, dashboard, the edge camera
+> **Status: MVP 04 — AI Engine.** Everything below plus an optional, fail-safe AI layer (local YOLOX
+> person detection, ByteTrack, clothing attributes, optional Claude provider).
+>
+> **MVP 03 — Standard Vision Engine.** Central API server, auth, dashboard, the edge camera
 > agent (RTSP / ONVIF / USB / file / FFmpeg sources, live preview, reconnection, encrypted
 > credentials) and AI-free motion analysis (motion objects, tracking, line crossing, zones, local
 > event storage) are implemented and work without internet or server. Optional AI, edge sync and
@@ -84,4 +87,5 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/API.md](docs/API.md) — endpoints and error format
 - [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
 - [docs/VISION_ENGINE.md](docs/VISION_ENGINE.md) — motion detection, tracking, lines, zones, events, storage
+- [docs/AI_ENGINE.md](docs/AI_ENGINE.md) — optional AI: model install, modes, failure protection, privacy
 - [infrastructure/database/README.md](infrastructure/database/README.md) — schema and Supabase security

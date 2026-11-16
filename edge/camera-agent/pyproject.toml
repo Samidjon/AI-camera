@@ -1,6 +1,6 @@
 [project]
 name = "aci-camera-agent"
-version = "0.3.0"
+version = "0.4.0"
 description = "AI Camera Intelligence — Edge Camera Agent (offline-first)"
 requires-python = ">=3.12,<3.13"
 # Deliberately no dependency on the central server, Redis, Supabase or any cloud service.
@@ -17,6 +17,11 @@ dependencies = [
     "psutil>=7.2.2",
 ]
 
+[project.optional-dependencies]
+# Optional cloud attribute provider (MVP 04). The agent runs without it; AI person detection
+# itself is local (OpenCV DNN + ONNX model) and needs no extra packages.
+claude = ["anthropic>=1.0"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
@@ -29,6 +34,8 @@ addopts = "-ra"
 markers = [
     "hardware: needs a real local camera (set ACI_TEST_USB_INDEX)",
     "rtsp: needs a real RTSP camera (set ACI_TEST_RTSP_URL)",
+    "model: needs the YOLOX ONNX model in ./models",
+    "claude_live: calls the real Claude API (costs money; set ACI_TEST_CLAUDE_LIVE=1)",
 ]
 filterwarnings = ["ignore:Using `httpx`:DeprecationWarning"]
 

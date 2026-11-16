@@ -20,6 +20,7 @@ export interface CameraOptions {
   max_fps?: number | null;
   loop?: boolean | null;
   onvif_profile?: number | null;
+  ai_enabled?: boolean | null;
 }
 
 export interface Camera {
@@ -176,7 +177,10 @@ export type AgentEventType =
   | "object_entered_zone"
   | "object_exited_zone"
   | "line_crossed"
-  | "camera_motion_activity";
+  | "camera_motion_activity"
+  | "person_detected"
+  | "person_left"
+  | "person_crossed_line";
 
 export interface AgentEvent {
   id: string;
@@ -193,4 +197,105 @@ export interface AgentEvent {
 export interface EventsPage {
   items: AgentEvent[];
   next_cursor: string | null;
+}
+
+// ---------------------------------------------------------------- AI Engine (MVP 04)
+
+export type AIMode = "disabled" | "loading" | "active" | "degraded" | "offline" | "error" | "recovering";
+export type AttributeProviderKind = "off" | "local" | "claude";
+
+export interface AIStatus {
+  mode: AIMode;
+  reason: string;
+  since: string;
+  enabled: boolean;
+  fallback: "standard_engine" | null;
+  warnings: string[];
+  model: { id: string; name: string | null; version: string | null; status: string; provider: string | null; backend: string | null };
+  metrics: {
+    inference_fps: number | null;
+    latency_avg_ms: number | null;
+    latency_p95_ms: number | null;
+    inferences: number;
+    detections: number;
+    timeouts: number;
+    errors: number;
+  };
+  people_now: number;
+  people_seen_session: number;
+  recovery: { attempts: number; next_attempt_in_s: number | null };
+  attributes_provider: AttributeProviderKind;
+  attributes_cloud: Record<string, number | string | null> | null;
+  resources: {
+    process_rss_mb: number;
+    max_rss_mb: number;
+    system_available_mb: number;
+    gpu: { available: boolean; detail?: string; name?: string; utilization_percent?: number; memory_used_mb?: number; memory_total_mb?: number };
+  };
+}
+
+export interface AIConfig {
+  enabled: boolean;
+  model_id: string;
+  confidence_threshold: number;
+  nms_threshold: number;
+  min_box_height: number;
+  process_fps: number;
+  attributes: AttributeProviderKind;
+  track_high_threshold: number;
+  track_buffer_frames: number;
+  min_track_hits: number;
+}
+
+export interface AIModel {
+  id: string;
+  name: string;
+  version: string;
+  file: string;
+  size_bytes: number;
+  sha256: string;
+  task: string;
+  license: string;
+  source: string;
+  status: "missing" | "unverified" | "invalid" | "valid" | "loaded";
+  detail: string;
+  selected: boolean;
+}
+
+export interface AIErrors {
+  errors: { at: string; kind: string; detail: string }[];
+  history: { at: string; mode: AIMode; reason: string }[];
+}
+
+// ---------------------------------------------------------------- Network discovery
+
+export interface DiscoveredDevice {
+  ip: string;
+  open_ports: number[];
+  onvif: { xaddr: string; port: number; name: string | null; hardware: string | null; manufacturer: string | null } | null;
+  rtsp: { port: number; server: string | null; status: number | null } | null;
+  web: { port: number; server: string | null; title: string | null; signature: string | null } | null;
+  vendor: string | null;
+  suggested_source_type: SourceType;
+  suggested_source_uri: string;
+  path_hint: string | null;
+  already_added: boolean;
+  camera_ids: string[];
+}
+
+export interface ScanJob {
+  id: string;
+  status: "running" | "done" | "failed" | "cancelled";
+  progress: number;
+  networks: string[];
+  started_at: number;
+  finished_at: number | null;
+  devices: DiscoveredDevice[];
+  error: string | null;
+}
+
+export interface LocalNetwork {
+  interface_ip: string;
+  network: string;
+  hosts: number;
 }

@@ -236,10 +236,18 @@ class CameraManager:
             raise CameraNotFoundError(camera_id)
         config, secret, secret_given = self._normalize(data)
         config.id = camera_id
-        if not secret_given and config.source_type in (SourceType.USB, SourceType.FILE):
-            secret_given, secret = True, None  # switching to a local source drops stored credentials
+        if (
+            not secret_given
+            and config.source_type in (SourceType.USB, SourceType.FILE)
+            and self.repo.has_secret(camera_id)
+        ):
+            # Switching to a local source drops stored credentials. Only when some exist: otherwise every
+            # edit of a USB / file camera would count as a credential change and reconnect the stream.
+            secret_given, secret = True, None
         updated = self.repo.update(config, secret, replace_secret=secret_given)
-        needs_restart = secret_given or any(getattr(current, f) != getattr(updated, f) for f in RESTART_FIELDS)
+        needs_restart = secret_given or any(
+            _restart_key(current, f) != _restart_key(updated, f) for f in RESTART_FIELDS
+        )
         with self._lock:
             running = camera_id in self._workers and self._workers[camera_id].is_alive()
         if not updated.is_enabled:
@@ -394,6 +402,14 @@ class CameraManager:
             logger.warning("Could not persist status for camera %s: %s", camera_id, redact(str(exc)))
 
 
+def _restart_key(config: CameraConfig, field_name: str):
+    """Options that don't affect capture (the AI switch) must not reconnect the stream."""
+    value = getattr(config, field_name)
+    if field_name == "options":
+        return {k: v for k, v in value.items() if k != "ai_enabled"}
+    return value
+
+
 def _group_name(name: str) -> str:
     name = name.strip()
     if not 1 <= len(name) <= 120:
@@ -409,6 +425,8 @@ def _clean_options(source_type: SourceType, options: dict) -> dict:
         if not 0.5 <= fps <= 120:
             raise ValueError("max_fps must be between 0.5 and 120")
         out["max_fps"] = fps
+    # Per-camera AI switch (MVP 04): the AI Engine skips cameras with ai_enabled = False.
+    out["ai_enabled"] = bool(options.get("ai_enabled", True))
     if source_type == SourceType.FILE:
         out["loop"] = bool(options.get("loop", True))
     if source_type == SourceType.ONVIF:

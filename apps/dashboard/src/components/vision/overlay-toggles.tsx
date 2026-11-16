@@ -8,6 +8,7 @@ export const OVERLAY_LAYERS = [
   { id: "tracks", label: "Track IDs" },
   { id: "zones", label: "Zones" },
   { id: "lines", label: "Lines" },
+  { id: "people", label: "People (AI)" },
 ] as const;
 
 /** Toggle chips for agent-drawn overlays. Each layer is independent. */

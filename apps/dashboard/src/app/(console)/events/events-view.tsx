@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRightLeft, LogIn, LogOut, Move, RefreshCw, Square } from "lucide-react";
+import { Activity, ArrowRightLeft, LogIn, LogOut, Move, RefreshCw, Square, UserCheck, UserMinus, UserRoundSearch } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -24,6 +24,9 @@ const TYPE_META: Record<AgentEventType, { label: string; icon: React.ComponentTy
   object_exited_zone: { label: "Exited zone", icon: LogOut },
   line_crossed: { label: "Line crossed", icon: ArrowRightLeft },
   camera_motion_activity: { label: "Motion activity", icon: Activity },
+  person_detected: { label: "Person detected (AI)", icon: UserRoundSearch },
+  person_left: { label: "Person left (AI)", icon: UserMinus },
+  person_crossed_line: { label: "Person crossed line (AI)", icon: UserCheck },
 };
 
 const TYPE_FILTERS: Record<string, AgentEventType[] | undefined> = {
@@ -32,6 +35,7 @@ const TYPE_FILTERS: Record<string, AgentEventType[] | undefined> = {
   zones: ["object_entered_zone", "object_exited_zone"],
   lines: ["line_crossed"],
   activity: ["camera_motion_activity"],
+  people: ["person_detected", "person_left", "person_crossed_line"],
 };
 
 const PERIODS: Record<string, number> = { "1h": 1, "24h": 24, "7d": 168, "30d": 720 };
@@ -53,6 +57,17 @@ function describe(e: AgentEvent): string {
   if (e.event_type === "object_exited_zone" && m.dwell_s != null) parts.push(`${m.dwell_s}s in zone`);
   if (e.event_type === "camera_motion_activity") {
     parts.push(`active ${Math.round(Number(m.active_ratio ?? 0) * 100)}% of ${m.interval_s}s`);
+  }
+  if (e.source === "ai") {
+    if (m.confidence != null) parts.push(`confidence ${Number(m.confidence).toFixed(2)}`);
+    if (e.event_type === "person_left" && m.duration_s != null) parts.push(`visible ${m.duration_s}s`);
+    const attrs = m.attributes as unknown as Record<string, { value: string }> | undefined;
+    if (attrs) {
+      const shown = ["upper_color", "lower_color", "backpack", "bag", "headwear"]
+        .filter((k) => attrs[k] && attrs[k].value !== "unknown" && attrs[k].value !== "no")
+        .map((k) => (attrs[k].value === "yes" ? k : `${k.replace("_color", "")} ${attrs[k].value}`));
+      if (shown.length) parts.push(shown.join(", "));
+    }
   }
   if (m.heading) parts.push(`heading ${m.heading}`);
   if (m.reason && m.reason !== "no motion") parts.push(String(m.reason));
@@ -113,7 +128,7 @@ export function EventsView() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Events"
-        description="Stored locally on the edge device by the Standard Vision Engine (no AI). Motion objects are not people."
+        description="Stored locally on the edge device. STANDARD = motion analysis without AI (motion objects, not people); AI = optional person detection."
         actions={
           <Button variant="outline" size="sm" onClick={first.refresh} aria-label="Refresh events">
             <RefreshCw />
@@ -152,6 +167,7 @@ export function EventsView() {
             <SelectItem value="zones">Zone enter / exit</SelectItem>
             <SelectItem value="lines">Line crossing</SelectItem>
             <SelectItem value="activity">Activity summaries</SelectItem>
+            <SelectItem value="people">People (AI)</SelectItem>
           </SelectContent>
         </Select>
         <Select value={period} onValueChange={setPeriod}>
@@ -223,7 +239,7 @@ export function EventsView() {
       )}
       <p className="text-xs text-muted-foreground">
         Track IDs are temporary and camera-scoped; they never identify a person. Synchronization to the central
-        server, CSV export and AI person events arrive in MVP 06–08.
+        server and CSV export arrive in MVP 06–08.
       </p>
     </div>
   );

@@ -28,6 +28,29 @@ Only standard protocols are used — no vendor SDKs.
 If you paste `rtsp://user:pass@host/...`, the credentials are moved to encrypted storage and removed
 from the URL automatically.
 
+## Network discovery (scan for cameras)
+
+Cameras → **Scan network** (permission `cameras:manage`). The edge agent looks for cameras on its own
+local network with three non-intrusive methods:
+
+| Method | What it does |
+|---|---|
+| ONVIF WS-Discovery | Multicast Probe to 239.255.255.250:3702; ONVIF cameras answer with their service address, name and model |
+| RTSP service scan | TCP connect to ports 554 / 8554, then an **unauthenticated** RTSP `OPTIONS` to confirm a video server and read its `Server` header |
+| Web-interface fingerprint | For hosts with 80 / 8000 / 8080 open: one `GET /` (like a browser) — known camera / NVR server headers and titles (Hikvision, Dahua, Reolink, Axis, …). Finds cameras whose RTSP / ONVIF is switched off |
+
+Results suggest a source (ONVIF `host:port`, or `rtsp://host:port/<vendor path>`) and open the Add
+Camera dialog pre-filled; cameras already added are marked.
+
+**Boundaries:** only private networks (10/8, 172.16/12, 192.168/16) the device is attached to, or one
+you enter (at most 1024 addresses); bounded concurrency and 0.35 s connect timeouts; **no credential
+guessing and no authentication bypass** — viewing a stream still requires the camera's own username
+and password. A typical /24 scan takes 4–10 s. Verified on the development network: 4 hosts answered
+(router, printer, two other devices), none of them a camera, and none was misreported as one.
+
+API: `GET /api/v1/discovery/networks`, `POST /api/v1/discovery/scans` (`{"network": "192.168.1.0/24"}`
+optional), `GET /api/v1/discovery/scans/{id}`, `POST /api/v1/discovery/scans/{id}/cancel`.
+
 ## Camera status
 
 Status reflects **real frame flow**, not just an opened socket.

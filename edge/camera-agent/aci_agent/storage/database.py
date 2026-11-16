@@ -82,6 +82,21 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_crossing_lines_camera_id ON crossing_lines(camera_id)
     """,
+    # v3 — MVP 04: AI runtime configuration and AI status history
+    """
+    CREATE TABLE ai_config (
+        id         INTEGER PRIMARY KEY CHECK (id = 1),
+        config     TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE ai_status_history (
+        id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        at     TEXT NOT NULL,
+        mode   TEXT NOT NULL,
+        reason TEXT
+    );
+    CREATE INDEX ix_ai_status_history_at ON ai_status_history(at)
+    """,
 ]
 
 # Separate database for events: high write volume, own retention, can be quarantined and rebuilt

@@ -1,7 +1,13 @@
 import { apiRequest } from "@/lib/api/client";
 
 import type {
+  AIConfig,
+  AIErrors,
+  AIModel,
+  AIStatus,
   AgentEventType,
+  LocalNetwork,
+  ScanJob,
   AgentStatus,
   CrossingLine,
   EventsPage,
@@ -84,6 +90,32 @@ export const agent = {
     params.set("limit", String(q.limit ?? 50));
     return apiRequest<EventsPage>(`/events?${params}`, { baseUrl: BASE, token, signal });
   },
+  // AI engine
+  aiStatus: (token: string, signal?: AbortSignal) => apiRequest<AIStatus>("/ai/status", { baseUrl: BASE, token, signal }),
+  aiEnable: (token: string) => apiRequest<AIStatus>("/ai/enable", { baseUrl: BASE, token, method: "POST" }),
+  aiDisable: (token: string) => apiRequest<AIStatus>("/ai/disable", { baseUrl: BASE, token, method: "POST" }),
+  aiConfig: (token: string) => apiRequest<AIConfig>("/ai/config", { baseUrl: BASE, token }),
+  saveAiConfig: (token: string, c: AIConfig) =>
+    apiRequest<AIConfig>("/ai/config", { baseUrl: BASE, token, method: "PUT", body: c }),
+  aiModels: (token: string) => apiRequest<AIModel[]>("/ai/models", { baseUrl: BASE, token }),
+  validateModel: (token: string, id: string) =>
+    apiRequest<{ id: string; status: string; detail: string }>(`/ai/models/${id}/validate`, {
+      baseUrl: BASE,
+      token,
+      method: "POST",
+      timeoutMs: 60_000,
+    }),
+  aiErrors: (token: string, signal?: AbortSignal) => apiRequest<AIErrors>("/ai/errors", { baseUrl: BASE, token, signal }),
+
+  // Network discovery
+  localNetworks: (token: string) => apiRequest<LocalNetwork[]>("/discovery/networks", { baseUrl: BASE, token }),
+  startScan: (token: string, network?: string) =>
+    apiRequest<ScanJob>("/discovery/scans", { baseUrl: BASE, token, method: "POST", body: network ? { network } : {} }),
+  scan: (token: string, id: string, signal?: AbortSignal) =>
+    apiRequest<ScanJob>(`/discovery/scans/${id}`, { baseUrl: BASE, token, signal }),
+  cancelScan: (token: string, id: string) =>
+    apiRequest<ScanJob>(`/discovery/scans/${id}/cancel`, { baseUrl: BASE, token, method: "POST" }),
+
   eventsSummary: (token: string, signal?: AbortSignal) =>
     apiRequest<{ since: string; counts: Partial<Record<AgentEventType, number>> }>("/events/summary", {
       baseUrl: BASE,
