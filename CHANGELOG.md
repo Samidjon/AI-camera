@@ -3,6 +3,31 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [0.2.0] — MVP 02 Camera Integration — 2026-11-16
+
+### Added
+- **Edge Camera Agent** (`edge/camera-agent`, Python 3.12, standalone, offline-first) with its own
+  SQLite database (WAL, versioned migrations) and local management API (FastAPI, port 8100).
+- Camera Manager: add / edit / remove, connect / disconnect, test connection, camera groups,
+  automatic reconnection with exponential backoff + jitter, restore on agent restart.
+- Sources: RTSP, ONVIF (stream URI discovery with WS-Security digest), USB (DirectShow / V4L2),
+  video files (real-time pacing, loop), any FFmpeg stream URL. OpenCV + FFmpeg backend with
+  open/read timeouts, RTSP over TCP.
+- One worker thread per camera; bounded frame buffers (latest-frame preview buffer, drop-oldest
+  analysis queues); Connection Monitor with measured FPS and stall detection.
+- Statuses online / offline / connecting / reconnecting / error / disabled based on real frame flow,
+  with failure kinds (unreachable, auth_failed, not_found, unsupported_format, stream_lost, ...).
+  RTSP DESCRIBE probe (Basic/Digest) to diagnose wrong password vs. wrong path vs. host down.
+- Encrypted camera credentials (Fernet) in a separate table; credentials typed into URLs are moved
+  to the secret store; never returned by the API or written to logs.
+- Live preview over MJPEG with short-lived camera-scoped stream tokens; snapshots.
+- Dashboard **Cameras** page: grid and list, live preview, details panel, add / edit dialogs with
+  per-source fields and connection test, delete confirmation, groups, status / FPS / resolution,
+  permission-aware controls. Overview shows real camera counts from the agent.
+- Central server: access tokens now carry the role's `perms` so edge agents authorize locally.
+- 82 agent tests (failure matrix, API, security, real OpenCV decoding, optional hardware/RTSP).
+- `docs/CAMERA_INTEGRATION.md`.
+
 ## [0.1.1] — MVP 01 fixes found on Supabase — 2026-11-16
 
 ### Fixed

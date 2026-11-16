@@ -26,7 +26,9 @@ export class NetworkError extends Error {
   }
 }
 
-interface RequestOptions {
+export interface RequestOptions {
+  /** Base URL including the API prefix. Defaults to the central server. */
+  baseUrl?: string;
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   token?: string | null;
@@ -45,7 +47,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
+    res = await fetch(`${opts.baseUrl ?? API_BASE_URL + API_PREFIX}${path}`, {
       method: opts.method ?? "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -54,7 +56,8 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
     });
   } catch (err) {
     if (opts.signal?.aborted) throw err;
-    throw new NetworkError(controller.signal.aborted ? "Central server did not respond in time" : undefined);
+    const who = opts.baseUrl ? "Service" : "Central server";
+    throw new NetworkError(controller.signal.aborted ? `${who} did not respond in time` : `${who} is unreachable`);
   } finally {
     clearTimeout(timeout);
   }
@@ -69,6 +72,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
     const e = body.error;
     throw new ApiError(res.status, e?.code ?? "http_error", e?.message ?? res.statusText, e?.request_id ?? null, e?.details);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 

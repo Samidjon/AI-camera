@@ -1,4 +1,4 @@
-# Runs every MVP 01 check: backend lint + tests (incl. migrations), dashboard lint + typecheck + build.
+# Runs every check: backend + edge agent lint and tests, dashboard lint + typecheck + build.
 # Usage (from repo root):  powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -14,9 +14,12 @@ function Step($name, $dir, [scriptblock]$cmd) {
 
 $api = Join-Path $root "apps\api-server"
 $web = Join-Path $root "apps\dashboard"
+$edge = Join-Path $root "edge\camera-agent"
 
 Step "backend: ruff"            $api { uv run ruff check . }
 Step "backend: pytest"          $api { uv run pytest -q }
+Step "edge agent: ruff"         $edge { uv run ruff check . }
+Step "edge agent: pytest"       $edge { uv run pytest -q }
 Step "dashboard: lint"          $web { npm run lint }
 Step "dashboard: typecheck"     $web { npm run typecheck }
 Step "dashboard: build"         $web { npm run build }

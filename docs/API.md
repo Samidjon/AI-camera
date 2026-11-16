@@ -27,6 +27,12 @@ Authorization: Bearer <access_token>
 ```
 
 Tokens are HS256 JWTs signed with `ACI_JWT_SECRET`, valid for `ACI_ACCESS_TOKEN_EXPIRE_MINUTES`.
+Claims: `sub` (user id), `role`, `perms` (role permissions — used by edge agents to authorize
+locally), `type: "access"`, `iat`, `exp`.
+
+The **edge agent** has its own API (`/api/v1` on port 8100, docs at `/docs`) — see
+[edge/camera-agent/README.md](../edge/camera-agent/README.md) and
+[CAMERA_INTEGRATION.md](CAMERA_INTEGRATION.md).
 
 Roles (seeded): `administrator` (`*`), `operator`, `viewer`. Endpoints added in later MVPs protect
 themselves with `Depends(require_permission("cameras:control"))`.

@@ -29,3 +29,6 @@ Thumbs.db
 # Local tooling
 .claude/
 .dev-admin.env
+
+# Edge agent local data (database, keys, samples)
+edge/camera-agent/data/

@@ -3,9 +3,10 @@
 Modular, offline-first video-surveillance platform: IP cameras → edge agents (local computer
 vision, optional AI) → central server → web control center.
 
-> **Status: MVP 01 — Core Foundation.** API server, database schema, auth foundation and the
-> dashboard shell are implemented. Camera connection, vision, AI and edge runtime are **not
-> implemented yet** (MVP 02–05). The dashboard labels every unimplemented module explicitly.
+> **Status: MVP 02 — Camera Integration.** Central API server, database schema, auth, dashboard
+> and the edge camera agent (RTSP / ONVIF / USB / file / FFmpeg sources, live preview, automatic
+> reconnection, encrypted credentials) are implemented. Vision, AI, edge sync and analytics are
+> **not implemented yet** (MVP 03–08). The dashboard labels every unimplemented module explicitly.
 
 ## Principles
 
@@ -21,7 +22,7 @@ vision, optional AI) → central server → web control center.
 apps/
   api-server/        Central API — Python 3.12, FastAPI, SQLAlchemy, Alembic
   dashboard/         Control center — Next.js 16, React 19, TypeScript, Tailwind 4, shadcn/ui
-edge/camera-agent/   Edge agent (placeholder until MVP 02–05)
+edge/camera-agent/   Edge camera agent — capture, camera manager, live preview (offline-first)
 services/event-processor/  Event ingestion (placeholder until MVP 06)
 shared/              Contracts: OpenAPI spec, JSON schemas, generated types
 infrastructure/      Database (Supabase) and monitoring notes
@@ -47,9 +48,17 @@ uv run uvicorn app.main:app --port 8000
 ```
 
 ```bash
-# 2. Dashboard (second terminal)
+# 2. Edge camera agent (second terminal)
+cd edge/camera-agent
+cp .env.example .env          # ACI_AGENT_JWT_SECRET = same value as the server's ACI_JWT_SECRET
+uv sync
+uv run python -m aci_agent    # http://localhost:8100
+```
+
+```bash
+# 3. Dashboard (third terminal)
 cd apps/dashboard
-cp .env.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:8000
+cp .env.example .env.local    # NEXT_PUBLIC_API_URL, NEXT_PUBLIC_AGENT_URL
 npm install
 npm run dev                   # http://localhost:3000
 ```
@@ -64,7 +73,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check.ps1   # Windows
 ./scripts/check.sh                                            # Linux / macOS
 ```
 
-Runs backend lint + unit/integration/migration tests and dashboard lint + typecheck + production build.
+Runs backend and edge agent lint + tests, and dashboard lint + typecheck + production build.
 
 ## Documentation
 
@@ -72,4 +81,5 @@ Runs backend lint + unit/integration/migration tests and dashboard lint + typech
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — setup with Supabase, troubleshooting
 - [docs/API.md](docs/API.md) — endpoints and error format
+- [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
 - [infrastructure/database/README.md](infrastructure/database/README.md) — schema and Supabase security

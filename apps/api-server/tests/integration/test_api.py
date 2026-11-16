@@ -156,3 +156,13 @@ def test_create_user_rejects_malformed_email(db: Session):
 
     with pytest.raises(AppError):
         create_user(db, email="not-an-email", password=PASSWORD, role_name="viewer", full_name=None)
+
+
+def test_access_token_carries_permissions_for_edge_agents(client: TestClient, db: Session, settings: Settings):
+    from app.core.security import decode_access_token
+
+    _make_user(db, role="operator", email="op@example.com")
+    token = _login(client, "op@example.com").json()["access_token"]
+    claims = decode_access_token(token, settings)
+    assert claims["role"] == "operator"
+    assert "cameras:control" in claims["perms"] and "cameras:manage" not in claims["perms"]

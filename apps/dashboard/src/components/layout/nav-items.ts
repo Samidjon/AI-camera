@@ -10,7 +10,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/cameras", label: "Cameras", icon: Cctv, availableIn: "MVP 02" },
+  { href: "/cameras", label: "Cameras", icon: Cctv },
   { href: "/devices", label: "Devices", icon: Cpu, availableIn: "MVP 05" },
   { href: "/events", label: "Events", icon: Activity, availableIn: "MVP 03" },
   { href: "/analytics", label: "Analytics", icon: BarChart3, availableIn: "MVP 08" },

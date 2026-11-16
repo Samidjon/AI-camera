@@ -12,7 +12,9 @@ router = APIRouter()
 def login(body: LoginRequest, request: Request, db: DbDep, settings: SettingsDep) -> TokenResponse:
     ip = request.client.host if request.client else None
     user = authenticate(db, body.email, body.password, ip=ip)
-    token = create_access_token(str(user.id), settings, extra={"role": user.role.name})
+    # Permissions travel in the token so edge agents can authorize locally (offline, no call back here).
+    claims = {"role": user.role.name, "perms": list(user.role.permissions or [])}
+    token = create_access_token(str(user.id), settings, extra=claims)
     return TokenResponse(access_token=token, expires_in=settings.access_token_expire_minutes * 60)
 
 

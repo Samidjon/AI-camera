@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every MVP 01 check: backend lint + tests (incl. migrations), dashboard lint + typecheck + build.
+# Runs every check: backend + edge agent lint and tests, dashboard lint + typecheck + build.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 failed=()
@@ -12,6 +12,8 @@ step() {
 
 step "backend: ruff"        "$ROOT/apps/api-server" uv run ruff check .
 step "backend: pytest"      "$ROOT/apps/api-server" uv run pytest -q
+step "edge agent: ruff"     "$ROOT/edge/camera-agent" uv run ruff check .
+step "edge agent: pytest"   "$ROOT/edge/camera-agent" uv run pytest -q
 step "dashboard: lint"      "$ROOT/apps/dashboard"  npm run lint
 step "dashboard: typecheck" "$ROOT/apps/dashboard"  npm run typecheck
 step "dashboard: build"     "$ROOT/apps/dashboard"  npm run build

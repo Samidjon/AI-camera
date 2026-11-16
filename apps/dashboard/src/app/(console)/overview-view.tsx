@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePolling } from "@/hooks/use-polling";
+import { agent } from "@/lib/agent/client";
 import { api } from "@/lib/api/client";
 import { formatDateTime, formatTime, formatUptime } from "@/lib/format";
 import { useSystemStatus } from "@/lib/system/system-status-provider";
@@ -22,8 +23,8 @@ const COMPONENT_META: Record<string, { label: string; icon: React.ComponentType<
 };
 
 const ROADMAP = [
-  { mvp: "01", name: "Core Foundation", state: "active" },
-  { mvp: "02", name: "Camera Integration", state: "planned" },
+  { mvp: "01", name: "Core Foundation", state: "done" },
+  { mvp: "02", name: "Camera Integration", state: "active" },
   { mvp: "03", name: "Standard Vision Engine", state: "planned" },
   { mvp: "04", name: "AI Engine (optional)", state: "planned" },
   { mvp: "05", name: "Edge Runtime", state: "planned" },
@@ -31,11 +32,12 @@ const ROADMAP = [
   { mvp: "07", name: "Web Dashboard", state: "planned" },
   { mvp: "08", name: "Analytics & Alerts", state: "planned" },
   { mvp: "09", name: "Production Release", state: "planned" },
-] as const;
+] as const satisfies readonly { mvp: string; name: string; state: "done" | "active" | "planned" }[];
 
 export function OverviewView() {
   const status = useSystemStatus();
   const version = usePolling((signal) => api.version(signal), 300_000);
+  const agentStatus = usePolling((signal) => agent.status(signal), 10_000);
   const s = status.data;
   const stale = Boolean(status.error && s);
 
@@ -71,7 +73,25 @@ export function OverviewView() {
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricTile label="Cameras" icon={Cctv} value={null} hint="Camera Manager arrives in MVP 02" />
+        <MetricTile
+          label="Cameras online"
+          icon={Cctv}
+          value={
+            agentStatus.data
+              ? `${agentStatus.data.cameras_by_status.online ?? 0} / ${agentStatus.data.cameras_total}`
+              : agentStatus.loading
+                ? <Skeleton className="h-5 w-16" />
+                : null
+          }
+          hint={
+            agentStatus.error
+              ? "Edge agent unreachable"
+              : agentStatus.data
+                ? `${agentStatus.data.cameras_by_status.error ?? 0} error · ${(agentStatus.data.cameras_by_status.reconnecting ?? 0) + (agentStatus.data.cameras_by_status.connecting ?? 0)} connecting`
+                : "Edge agent"
+          }
+          className={agentStatus.error && agentStatus.data ? "opacity-60" : undefined}
+        />
         <MetricTile label="Edge devices" icon={Cpu} value={null} hint="Edge Runtime arrives in MVP 05" />
         <MetricTile label="Motion events today" icon={Activity} value={null} hint="Vision Engine arrives in MVP 03" />
         <MetricTile
@@ -168,13 +188,23 @@ export function OverviewView() {
               className={
                 m.state === "active"
                   ? "rounded-md border border-primary/40 bg-primary/10 px-3 py-2"
-                  : "rounded-md border px-3 py-2 opacity-70"
+                  : m.state === "done"
+                    ? "rounded-md border px-3 py-2"
+                    : "rounded-md border px-3 py-2 opacity-70"
               }
             >
               <div className="font-mono text-[10px] text-muted-foreground">MVP {m.mvp}</div>
               <div className="text-xs font-medium">{m.name}</div>
-              <div className={m.state === "active" ? "mt-1 text-[10px] text-primary" : "mt-1 text-[10px] text-muted-foreground"}>
-                {m.state === "active" ? "In progress" : "Planned"}
+              <div
+                className={
+                  m.state === "active"
+                    ? "mt-1 text-[10px] text-primary"
+                    : m.state === "done"
+                      ? "mt-1 text-[10px] text-status-online"
+                      : "mt-1 text-[10px] text-muted-foreground"
+                }
+              >
+                {m.state === "active" ? "In progress" : m.state === "done" ? "Done" : "Planned"}
               </div>
             </li>
           ))}

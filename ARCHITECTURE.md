@@ -25,7 +25,7 @@
 Dependency direction is one-way: **edge never depends on the server**; the server never depends on
 an edge being online; the dashboard only talks to the server's public API.
 
-## Modules (MVP 01)
+## Modules
 
 ### apps/api-server
 
@@ -55,6 +55,23 @@ an edge being online; the dashboard only talks to the server's public API.
 | `src/app/(console)/` | Authenticated pages: Overview, Cameras, Devices, Events, Analytics, Settings |
 | `src/app/login/` | Login |
 
+### edge/camera-agent (MVP 02)
+
+Standalone process next to the cameras; its own SQLite DB and local API. Details:
+[docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md).
+
+| Path | Responsibility |
+|---|---|
+| `camera/sources.py` | Input validation, credential splitting, `CaptureFactory` (OpenCV/FFmpeg) per source type |
+| `camera/rtsp_probe.py`, `camera/onvif.py` | RTSP DESCRIBE diagnostics, ONVIF stream-URI discovery |
+| `camera/manager.py` | Camera Manager: CRUD, connect/disconnect, test, groups, worker lifecycle |
+| `video/stream_worker.py` | One thread per camera: connect → read → detect loss → backoff → reconnect |
+| `video/connection_monitor.py` | Measured FPS, stall detection (status from real frame flow) |
+| `video/frame_buffer.py` | Bounded buffers: latest-frame (preview), drop-oldest queues (analysis) |
+| `storage/` | SQLite (WAL, `user_version` migrations): cameras, groups, encrypted secrets |
+| `security/` | Fernet secret box; local JWT verification; camera-scoped stream tokens |
+| `api/app.py` | Management API + MJPEG preview |
+
 ### shared/
 
 OpenAPI contract (exported from the server) and JSON schemas for payloads that cross process
@@ -75,6 +92,11 @@ boundaries (`camera-event.schema.json`).
 | D9 | **Liveness ≠ readiness** | `/health` never touches dependencies; `/system/status` checks them. |
 | D10 | **Dashboard session = bearer token in localStorage (foundation)** | Short-lived tokens; httpOnly cookies + refresh tokens with full RBAC in MVP 07. |
 | D11 | **Console pages render after client session check** | Next.js instant-navigation validation set to `manual-warning` (see `next.config.ts`). |
+| D12 | **Camera Manager lives in the edge agent, not the central server** (MVP 02) | Offline-first: capture and camera management must work without the server. The central `cameras` table becomes the synced registry in MVP 06. |
+| D13 | **Dashboard talks to the agent directly in MVP 02** (`NEXT_PUBLIC_AGENT_URL`) | Single-site setup. Routing to many agents through the central server comes with device management (MVP 06). |
+| D14 | **Agent verifies dashboard JWTs locally** (shared HS256 secret, `perms` claim) | No network call to the server, so management works while the server is offline. Per-device credentials in MVP 05–06. |
+| D15 | **Preview = MJPEG with short-lived stream tokens** | Push-based, works in a plain `<img>`, no access token in URLs. Limited to ~4 simultaneous previews per browser (HTTP/1.1); multiplexed transport in MVP 07. |
+| D16 | **Agent storage = stdlib sqlite3** | Light dependency footprint for Jetson / mini PCs; WAL for crash safety. |
 
 ## Error format
 
