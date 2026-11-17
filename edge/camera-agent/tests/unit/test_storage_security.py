@@ -79,3 +79,16 @@ def test_schema_migration_is_idempotent(tmp_path: Path):
     assert db.schema_version == v >= 1
     assert db.integrity_ok()
     db.close()
+
+
+def test_deleted_data_is_overwritten_on_disk(tmp_path: Path):
+    """secure_delete: a deleted camera's name must not survive in the database file's free pages."""
+    repo, db = _repo(tmp_path)
+    assert db.query("PRAGMA secure_delete")[0][0] == 1
+    marker = "PRIVATE-CAMERA-NAME-7f3a"
+    cam = repo.create(CameraConfig(id="", name=marker, source_type=SourceType.FILE, source_uri="x.mp4"), None)
+    repo.delete(cam.id)
+    db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    db.close()
+    raw = b"".join(p.read_bytes() for p in tmp_path.glob("agent.db*"))
+    assert marker.encode() not in raw

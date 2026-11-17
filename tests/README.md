@@ -10,5 +10,10 @@ unit/integration tests next to its code:
 | Dashboard build checks | `apps/dashboard` | `npm run lint && npm run typecheck && npm run build` |
 | Everything | `scripts/check.ps1` / `scripts/check.sh` | |
 
-Planned: Playwright E2E (MVP 07), offline / failure-recovery scenarios (MVP 05, MVP 09),
-performance tests (MVP 09).
+| Browser end-to-end (real stack) | `apps/dashboard/e2e/` | `npm run test:e2e` |
+| Offline scenarios A–E (real processes) | `tests/system/offline_scenarios.py` | `cd edge/camera-agent && uv run python ../../tests/system/offline_scenarios.py` |
+| Performance 1/5/10/20 cameras | `tests/system/performance.py` | `cd edge/camera-agent && uv run python ../../tests/system/performance.py` |
+
+System tests start their own server and agent processes on free ports with separate data
+(`tests/system/.data/`, ignored); results are written to `tests/system/results/`. Report:
+[docs/TEST_REPORT.md](../docs/TEST_REPORT.md).

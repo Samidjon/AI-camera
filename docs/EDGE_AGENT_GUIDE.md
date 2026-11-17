@@ -1,4 +1,4 @@
-# Edge Agent Runtime (MVP 05, server link completed in MVP 06)
+# Edge agent guide
 
 The edge agent (`edge/camera-agent`) is an **autonomous program on the edge computer next to the
 cameras** — a Linux mini PC, an NVR-class box or an NVIDIA Jetson. It captures video, runs the
@@ -145,6 +145,24 @@ starts the real server and syncs real agents over HTTP) and live on the developm
   (`camera_id`, `seq`, `ts`, `width`, `height`) + JPEG; a JSON `status` message per second with
   each camera's status and measured FPS. Only the newest frame per camera is sent; encodes are cached
   per frame / size / overlay variant and shared between viewers.
+
+## Installation and automatic start
+
+| Platform | Install | Starts at boot / after a crash |
+|---|---|---|
+| Linux (x86_64 / aarch64, incl. Jetson, mini PCs) | `sudo deploy/linux/install.sh` → `aci-agentctl configure` | systemd `Restart=always`, `WantedBy=multi-user.target` |
+| Windows | `deploy\windows\install.ps1` (elevated) | Scheduled task as SYSTEM at start-up, restart every minute on failure |
+
+Details: [INSTALLATION.md](INSTALLATION.md), Jetson: [JETSON.md](JETSON.md).
+
+**Crash recovery (verified, scenario D in [TEST_REPORT.md](TEST_REPORT.md)):** after a hard kill
+(power loss, crash) the agent restarts on the same data: same device identity and credentials,
+cameras reconnect automatically, no stored event or queued upload is lost, databases pass the
+integrity check. SQLite runs in WAL mode; a corrupt database is quarantined and restored from the
+latest verified backup.
+
+**Graceful shutdown:** on a normal stop (SIGTERM from systemd, Ctrl+C) the agent stops the cameras, flushes the event queue
+and checkpoints the databases (systemd allows 30 s). Stopping the Windows scheduled task terminates the process — covered by the crash recovery above.
 
 ## Command line
 

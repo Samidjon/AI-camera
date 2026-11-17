@@ -158,8 +158,11 @@ def create_app(
             "health": {"database_ok": db_ok, "storage_paused": events.storage_paused},
             "cameras": {"total": mgr.repo.count(), "by_status": mgr.status_counts()},
             "ai": {
-                "enabled": ai.config.enabled, "mode": ai.mode.value, "reason": ai.mode_reason,
-                "model": ai.config.model_id, **ai.metrics.snapshot(),  # inference fps / latency for reports
+                "enabled": ai.config.enabled,
+                "mode": ai.mode.value,
+                "reason": ai.mode_reason,
+                "model": ai.config.model_id,
+                **ai.metrics.snapshot(),  # inference fps / latency for reports
             },  # fmt: skip
             "vision": vision.stats(),
             "events": {k: v for k, v in events.stats().items() if k in ("events_total", "dropped", "storage_paused")},
@@ -237,6 +240,19 @@ def create_app(
         allow_headers=["Authorization", "Content-Type"],
         max_age=600,  # cache preflight: status polling would otherwise double every request
     )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        """Defensive headers (MVP 09): no sniffing / framing / referrer, API never cached."""
+        response = await call_next(request)
+        h = response.headers
+        h.setdefault("X-Content-Type-Options", "nosniff")
+        h.setdefault("X-Frame-Options", "DENY")
+        h.setdefault("Referrer-Policy", "no-referrer")
+        h.setdefault("Cross-Origin-Resource-Policy", "cross-origin")  # dashboard on another origin
+        if request.url.path.startswith("/api/") and "Cache-Control" not in h:
+            h["Cache-Control"] = "no-store"
+        return response
 
     # ------------------------------------------------------------ error handling
 

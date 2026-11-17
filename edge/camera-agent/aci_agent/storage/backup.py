@@ -7,7 +7,7 @@ keeps the newest ``keep`` backups.
 
 The encryption key (``secret.key``) is deliberately **not** copied next to the databases: a backup
 alone can't decrypt camera passwords or the device credential. Back the key up separately
-(see docs/EDGE_AGENT.md → Backups).
+(see docs/EDGE_AGENT_GUIDE.md → Backups).
 """
 
 from __future__ import annotations

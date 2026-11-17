@@ -1,0 +1,24 @@
+# Single entry point: /api/* (REST + WebSocket) and API docs → server, everything else → dashboard.
+# ACI_SITE_ADDRESS: a domain (cameras.example.com) → automatic HTTPS (Let's Encrypt);
+# ":80" → plain HTTP for a closed LAN only.
+{$ACI_SITE_ADDRESS}
+
+encode zstd gzip
+
+@api path /api/* /docs /docs/* /redoc /openapi.json
+handle @api {
+	reverse_proxy api:8000
+}
+
+handle {
+	reverse_proxy dashboard:3000
+}
+
+header {
+	-Server
+}
+
+log {
+	output stdout
+	format json
+}

@@ -34,7 +34,7 @@ The **edge agent** has its own API (`/api/v1` on port 8100, docs at `/docs`) —
 [edge/camera-agent/README.md](../edge/camera-agent/README.md) and
 [CAMERA_INTEGRATION.md](CAMERA_INTEGRATION.md). Device runtime endpoints (`/api/v1/device*`) and the
 **device ↔ central-server contract** (registration, heartbeat, `/events/batch`, configuration) that the
-central server implements in MVP 06: [EDGE_AGENT.md](EDGE_AGENT.md).
+central server implements in MVP 06: [EDGE_AGENT_GUIDE.md](EDGE_AGENT_GUIDE.md).
 
 ### Edge devices, events, real time (MVP 06)
 

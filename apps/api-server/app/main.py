@@ -22,6 +22,7 @@ from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, request_id_ctx
+from app.core.security_headers import apply_security_headers
 from app.db.session import session_scope, set_engine
 from app.processing.event_processor import EventProcessor
 from app.realtime.hub import hub
@@ -105,7 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_origin_regex=settings.cors_origin_regex or None,
-        allow_credentials=True,
+        allow_credentials=False,  # bearer tokens only, no cookies → no CSRF surface
         allow_methods=["*"],
         allow_headers=["*"],
         # Content-Disposition: the browser must see the CSV export's file name.
@@ -122,6 +123,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response = await call_next(request)
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
             response.headers["X-Request-ID"] = rid
+            apply_security_headers(request, response)
             logger.info(
                 "%s %s -> %s",
                 request.method,

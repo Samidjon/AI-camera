@@ -3,12 +3,12 @@
 Modular, offline-first video-surveillance platform: IP cameras → edge agents (local computer
 vision, optional AI) → central server → web control center.
 
-> **Status: 0.8.0 — MVP 08 Analytics, Reports & Alerts.** Edge agents (camera sources, AI-free
-> motion analysis, optional fail-safe AI: YOLOX person detection, ByteTrack, clothing attributes),
-> central server (device fleet, event ingestion, real time), web control center (live wall, events,
-> observations, settings, installable on phones) and now server-side analytics, CSV / PDF reports and
-> configurable alerts with in-app and e-mail notifications. Everything on the edge keeps working
-> without internet or server. Next: MVP 09 production release.
+> **Status: 1.0.0 — production release.** Edge agents (camera sources, AI-free motion analysis,
+> optional fail-safe AI), central server (device fleet, event ingestion, real time, analytics,
+> reports, alerts), web control center (installable on phones) and production packaging (Docker
+> Compose with automatic HTTPS, backup / update / rollback scripts, Linux / Jetson / Windows agent
+> installers, monitoring). Verified offline scenarios and measured performance:
+> [docs/TEST_REPORT.md](docs/TEST_REPORT.md). Release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ## Principles
 
@@ -81,8 +81,13 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — modules, boundaries, decisions
 - [CHANGELOG.md](CHANGELOG.md)
-- [docs/INSTALLATION.md](docs/INSTALLATION.md) — setup with Supabase, troubleshooting
-- [docs/API.md](docs/API.md) — endpoints and error format
+- [docs/INSTALLATION.md](docs/INSTALLATION.md) — production (Docker Compose), edge agent on Linux / Jetson / Windows, development
+- [docs/USER_MANUAL.md](docs/USER_MANUAL.md) — using the control center (operators, viewers)
+- [docs/ADMIN_MANUAL.md](docs/ADMIN_MANUAL.md) — users, devices, alerts, monitoring, backups, updates, rollback
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — symptoms → causes → fixes
+- [docs/SECURITY.md](docs/SECURITY.md) — security review, privacy guarantees, operator checklist
+- [docs/TEST_REPORT.md](docs/TEST_REPORT.md) — offline scenarios A–E, measured performance
+- [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) — endpoints and error format
 - [docs/CAMERA_INTEGRATION.md](docs/CAMERA_INTEGRATION.md) — camera sources, statuses, preview, security, tests
 - [docs/VISION_ENGINE.md](docs/VISION_ENGINE.md) — motion detection, tracking, lines, zones, events, storage
 - [docs/AI_ENGINE.md](docs/AI_ENGINE.md) — optional AI: model install, modes, failure protection, privacy
@@ -90,6 +95,6 @@ Runs backend and edge agent lint + tests, and dashboard lint + typecheck + produ
 - [docs/DASHBOARD.md](docs/DASHBOARD.md) — control center pages, roles, real-time, live wall, Playwright tests
 - [docs/ANALYTICS_ALERTS.md](docs/ANALYTICS_ALERTS.md) — analytics rules, reports, alert conditions, e-mail (SMTP)
 - [docs/CENTRAL_SERVER.md](docs/CENTRAL_SERVER.md) — devices, event processor, configuration, WebSocket, security
-- [docs/EDGE_AGENT.md](docs/EDGE_AGENT.md) — edge runtime: identity, offline sync, server contract, backups, security
+- [docs/EDGE_AGENT_GUIDE.md](docs/EDGE_AGENT_GUIDE.md) — edge runtime: identity, offline sync, server contract, backups, security
 - [docs/JETSON.md](docs/JETSON.md) — install on Linux / NVIDIA Jetson as a systemd service, update, uninstall
 - [infrastructure/database/README.md](infrastructure/database/README.md) — schema and Supabase security

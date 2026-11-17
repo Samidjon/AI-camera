@@ -63,7 +63,7 @@ tests/             unit + integration (fake capture backend, real OpenCV files, 
 | PATCH / POST / DELETE | `/device`, `/device/sync`, `/device/link`, `/device/backups` | `devices:manage` |
 
 Details: [docs/CAMERA_INTEGRATION.md](../../docs/CAMERA_INTEGRATION.md),
-runtime / sync / install: [docs/EDGE_AGENT.md](../../docs/EDGE_AGENT.md), [docs/JETSON.md](../../docs/JETSON.md).
+runtime / sync / install: [docs/EDGE_AGENT_GUIDE.md](../../docs/EDGE_AGENT_GUIDE.md), [docs/JETSON.md](../../docs/JETSON.md).
 
 ## Rules
 

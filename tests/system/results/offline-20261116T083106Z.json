@@ -1,0 +1,201 @@
+{
+  "started": "2026-11-16T08:31:06.374982+00:00",
+  "checks": [
+    {
+      "scenario": "A",
+      "check": "AI disabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "A",
+      "check": "capture continues (frames advancing, cameras online)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "A",
+      "check": "motion events recorded locally",
+      "ok": true,
+      "detail": "motion 0\u219210"
+    },
+    {
+      "scenario": "A",
+      "check": "events queued for later upload",
+      "ok": true,
+      "detail": "pending=6"
+    },
+    {
+      "scenario": "A",
+      "check": "agent reports server unreachable, not crashed",
+      "ok": true,
+      "detail": "state=offline reason=central server unreachable \u2014 events are queued locally"
+    },
+    {
+      "scenario": "A",
+      "check": "no connection outside loopback (works without internet)",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "scenario": "A",
+      "check": "local database integrity ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "B",
+      "check": "AI engine active offline (local model)",
+      "ok": true,
+      "detail": "yolox_s_coco_2022nov"
+    },
+    {
+      "scenario": "B",
+      "check": "inference keeps running",
+      "ok": true,
+      "detail": "inferences 2\u2192123, p95 278.7 ms"
+    },
+    {
+      "scenario": "B",
+      "check": "cameras keep streaming with AI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "B",
+      "check": "standard engine keeps analysing alongside AI",
+      "ok": true,
+      "detail": "frames analysed 533\u2192578 534\u2192579"
+    },
+    {
+      "scenario": "B",
+      "check": "events still stored locally",
+      "ok": true,
+      "detail": "next standard-engine event after 41s (20\u219222)"
+    },
+    {
+      "scenario": "C",
+      "check": "AI mode becomes disabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "C",
+      "check": "cameras were not restarted (frame counters keep growing)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "C",
+      "check": "standard engine keeps analysing",
+      "ok": true,
+      "detail": "frames analysed 884\u2192929 886\u2192929"
+    },
+    {
+      "scenario": "C",
+      "check": "standard engine keeps detecting motion",
+      "ok": true,
+      "detail": "next standard-engine event after 54s (22\u219224)"
+    },
+    {
+      "scenario": "C",
+      "check": "cameras online",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "D",
+      "check": "agent back up",
+      "ok": true,
+      "detail": "API 5.9s, cameras online 6.0s after the crash"
+    },
+    {
+      "scenario": "D",
+      "check": "cameras restored automatically",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "D",
+      "check": "no local events lost",
+      "ok": true,
+      "detail": "24\u219224"
+    },
+    {
+      "scenario": "D",
+      "check": "upload queue preserved",
+      "ok": true,
+      "detail": "pending 24\u219224"
+    },
+    {
+      "scenario": "D",
+      "check": "databases intact after hard kill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "D",
+      "check": "same device identity",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "D",
+      "check": "AI setting persisted (still off)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "E",
+      "check": "accumulated queue uploaded",
+      "ok": true,
+      "detail": "48 events in 14.7s after the server came back"
+    },
+    {
+      "scenario": "E",
+      "check": "server has every local event",
+      "ok": true,
+      "detail": "local=48 server=48"
+    },
+    {
+      "scenario": "E",
+      "check": "no duplicates on the server",
+      "ok": true,
+      "detail": "duplicates=0"
+    },
+    {
+      "scenario": "E",
+      "check": "nothing dropped from the queue",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "E",
+      "check": "device online on the server again",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "measurements": {
+    "A_local_events_added": 10,
+    "B_ai_metrics": {
+      "inference_fps": 4.04,
+      "latency_avg_ms": 247.3,
+      "latency_p95_ms": 278.7,
+      "inferences": 123,
+      "detections": 0,
+      "timeouts": 0,
+      "errors": 0
+    },
+    "D_restart_s": {
+      "api": 5.9,
+      "cameras_online": 6.0
+    },
+    "E": {
+      "outage_s": 391,
+      "queued": 48,
+      "drain_s": 14.7
+    }
+  },
+  "passed": true
+}
