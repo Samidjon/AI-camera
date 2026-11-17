@@ -27,6 +27,8 @@ os.environ.update(
         "ACI_LOG_LEVEL": "WARNING",
         "ACI_DEVICE_MONITOR_INTERVAL_S": "1",
         "ACI_RATE_HEARTBEAT_BURST": "1000",
+        "ACI_RATE_LOGIN_BURST": "1000",
+        "ACI_RATE_LOGIN_ACCOUNT_BURST": "1000",
     }
 )
 

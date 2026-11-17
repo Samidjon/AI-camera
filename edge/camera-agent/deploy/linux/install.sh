@@ -68,7 +68,7 @@ install -m 644 "$SOURCE/pyproject.toml" "$SOURCE/uv.lock" "$PREFIX/"
 [[ -f "$SOURCE/README.md" ]] && install -m 644 "$SOURCE/README.md" "$PREFIX/"
 install -d -m 755 "$PREFIX/models" "$PREFIX/docs"
 cp -f "$SOURCE"/models/*.onnx "$PREFIX/models/" 2>/dev/null || true
-for doc in EDGE_AGENT.md JETSON.md; do
+for doc in EDGE_AGENT_GUIDE.md JETSON.md; do
   [[ -f "$SOURCE/../../docs/$doc" ]] && install -m 644 "$SOURCE/../../docs/$doc" "$PREFIX/docs/"
 done
 find "$PREFIX/aci_agent" -name '__pycache__' -prune -exec rm -rf {} +

@@ -5,6 +5,7 @@ import {
   BrainCircuit,
   Cctv,
   Cpu,
+  HeartPulse,
   LayoutDashboard,
   MonitorPlay,
   Settings,
@@ -65,6 +66,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Alerts",
     icon: BellRing,
     permission: "events:read",
+  },
+  {
+    href: "/monitoring-health",
+    label: "System health",
+    icon: HeartPulse,
+    permission: "devices:read",
   },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

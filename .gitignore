@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
+.dev-admin.env
+# system-test working data
+tests/system/.data/
 
 # Python
 __pycache__/

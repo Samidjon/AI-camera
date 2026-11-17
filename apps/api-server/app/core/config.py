@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     rate_heartbeat_per_s: float = Field(default=1, gt=0)
     rate_heartbeat_burst: int = Field(default=5, ge=1)
     rate_register_per_min: float = Field(default=10, gt=0)
+    # Sign-in brute-force protection: per client IP and per account (e-mail), independent buckets
+    rate_login_per_min: float = Field(default=10, gt=0)
+    rate_login_burst: int = Field(default=10, ge=1)
+    rate_login_account_per_hour: float = Field(default=30, gt=0)
+    rate_login_account_burst: int = Field(default=10, ge=1)
     device_monitor_interval_s: float = Field(default=10, ge=0.2, le=600)
 
     # E-mail notifications (MVP 08). Without smtp_host no e-mail is ever sent.

@@ -1,12 +1,14 @@
 import platform
 import time
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from app import __version__
-from app.api.deps import SettingsDep
+from app.api.deps import DbDep, SettingsDep, require_permission
 from app.core.ratelimit import limiter
+from app.models import User
 from app.realtime.hub import hub
 from app.schemas.system import (
     ComponentState,
@@ -14,6 +16,7 @@ from app.schemas.system import (
     SystemStatusResponse,
     VersionResponse,
 )
+from app.services import monitoring
 from app.services.health import check_database, check_redis, device_counts
 
 router = APIRouter()
@@ -47,6 +50,16 @@ def system_status(request: Request, settings: SettingsDep) -> SystemStatusRespon
         event_processor=dict(request.app.state.event_processor.stats),
         realtime={"websocket_clients": hub.client_count, "published": hub.published, "rate_limited": limiter.rejected},
     )
+
+
+@router.get("/monitoring", summary="Health of every component (backend, DB, Redis, disk, devices, cameras, AI, sync)")
+def system_monitoring(
+    request: Request,
+    settings: SettingsDep,
+    db: DbDep,
+    _: Annotated[User, Depends(require_permission("devices:read"))],
+) -> dict:
+    return monitoring.snapshot(db, settings, request.app.state)
 
 
 @router.get("/version", response_model=VersionResponse, summary="Build / version info")

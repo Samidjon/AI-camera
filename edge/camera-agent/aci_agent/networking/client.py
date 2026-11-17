@@ -1,7 +1,7 @@
 """HTTP client for the central server's device API.
 
 The wire contract (implemented by the central server in MVP 06) is documented in
-``docs/EDGE_AGENT.md`` → "Server contract". All calls are plain JSON over HTTPS; the device
+``docs/EDGE_AGENT_GUIDE.md`` → "Server contract". All calls are plain JSON over HTTPS; the device
 authenticates with ``Authorization: Bearer <device secret>`` plus ``X-ACI-Device-ID``.
 
 Error mapping:

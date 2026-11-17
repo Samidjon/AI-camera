@@ -177,4 +177,7 @@ def test_cors_origin_regex(settings, manager):
     with TestClient(create_app(s, manager=manager)) as c:
         ok = c.get("/api/v1/health", headers={"Origin": "https://camera-agent.vercel.app"})
         assert ok.headers.get("access-control-allow-origin") == "https://camera-agent.vercel.app"
-        assert "access-control-allow-origin" not in c.get("/api/v1/health", headers={"Origin": "https://x.example"}).headers
+        assert (
+            "access-control-allow-origin"
+            not in c.get("/api/v1/health", headers={"Origin": "https://x.example"}).headers
+        )

@@ -1,6 +1,6 @@
 [project]
 name = "aci-api-server"
-version = "0.8.0"
+version = "1.0.0"
 description = "AI Camera Intelligence — Central API Server"
 requires-python = ">=3.12,<3.13"
 dependencies = [

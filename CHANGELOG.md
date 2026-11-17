@@ -3,6 +3,38 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/),
 versioning: [SemVer](https://semver.org/).
 
+## [1.0.0] — MVP 09 Production Release — 2026-11-16
+
+### Added
+- **Production deployment**: `docker-compose.yml` (PostgreSQL 16, Redis 7, API, dashboard, Caddy with
+  automatic HTTPS as the only published service), hardened containers (non-root, read-only API,
+  dropped capabilities, log rotation), migrations on start, `.env.production.example`.
+- **Operations scripts** (`scripts/server/`): verified PostgreSQL backups with rotation and checksum,
+  restore with safety dump, update with automatic code/image rollback, uninstall (data kept unless
+  `--purge`).
+- **Windows edge agent installer**: scheduled task as SYSTEM at start-up with restart on failure,
+  restricted data folder; uninstall script.
+- **System monitoring**: `GET /api/v1/system/monitoring` (backend, database, Redis, server disk, edge
+  devices, cameras, AI, synchronization) and a **System health** page in the dashboard.
+- **System tests against real processes** (`tests/system/`): offline scenarios A–E (29 checks) and
+  performance measurement for 1 / 5 / 10 / 20 cameras in standard and AI mode. Report:
+  `docs/TEST_REPORT.md`.
+- Documentation set: `USER_MANUAL.md`, `ADMIN_MANUAL.md`, `TROUBLESHOOTING.md`, `SECURITY.md`,
+  `TEST_REPORT.md`, production sections in `INSTALLATION.md`; `EDGE_AGENT.md` →
+  `EDGE_AGENT_GUIDE.md`, `API.md` → `API_DOCUMENTATION.md`. `RELEASE_NOTES.md`.
+
+### Security
+- Sign-in brute-force protection: token buckets per client IP and per account (429 + Retry-After).
+- Security headers on server, agent and dashboard (nosniff, frame denial, no-referrer,
+  Permissions-Policy, CSP, `Cache-Control: no-store` for API, HSTS over HTTPS).
+- CORS no longer allows credentials (bearer tokens only — no CSRF surface).
+- Agent SQLite databases use `secure_delete` (deleted data overwritten on disk).
+- Tests for tampered / `alg=none` tokens, SQL metacharacters, script injection, oversized input.
+
+### Changed
+- ARCHITECTURE: decisions D46–D51 (analytics honesty, alert transactions, Compose + Caddy, no-cookie
+  auth, OS-service autostart, measured capacity only).
+
 ## [0.8.0] — MVP 08 Analytics, Reports & Alerts — 2026-11-16
 
 ### Added
@@ -140,7 +172,7 @@ versioning: [SemVer](https://semver.org/).
 - **Linux / Jetson deployment**: `install.sh` (system user, `/opt`, `/etc` mode 600, `/var/lib` mode 700,
   locked dependencies), hardened `aci-agent.service`, `aci-agentctl` (start / stop / restart / status /
   logs / update with SHA-256 verification, backup and automatic rollback / uninstall [--purge]),
-  `deploy/package.sh`. Docs: `docs/EDGE_AGENT.md`, `docs/JETSON.md`.
+  `deploy/package.sh`. Docs: `docs/EDGE_AGENT_GUIDE.md`, `docs/JETSON.md`.
 - Agent API `/api/v1/device*` (`devices:read` / `devices:manage`); `/system/status` reports device and sync.
 - Dashboard **Devices** page: metrics, device facts, central-server link (register / sync / unlink),
   network, storage and backups, system log.
